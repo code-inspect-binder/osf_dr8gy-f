@@ -1,0 +1,2317 @@
+---
+title: "Association between in-ICU red blood cells transfusion and one-year mortality in ICU survivors"
+author: "Imke Mayer,Paul Roussel, Antoine Kimmoun, Thomas Merkling,Kevin Duarte, Julie Josse"
+output:
+  word_document: null
+  html_document:
+    code_folding: hide
+    theme: journal
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
+editor_options:
+  chunk_output_type: inline
+  markdown: 
+    wrap: sentence
+always_allow_html: yes
+---
+
+```{=html}
+<style type="text/css">
+
+h1.title {
+  font-size: 38px;
+  text-align: center;
+}
+
+h4.author { /* Header 4 - and the author and data headers use this too  */
+    font-size: 18px;
+  font-family: "Times New Roman", Times, serif;
+  text-align: center;
+}
+
+h4.date { /* Header 4 - and the author and data headers use this too  */
+  font-size: 18px;
+  font-family: "Times New Roman", Times, serif;
+  text-align: center;
+}
+</style>
+```
+
+# Attention: the following code doesn't work without the original data. This code is provided to present what has been performed.
+
+# **Methods**
+
+## Statistical analysis
+
+Patients were separated into two groups: those who received RBC transfusion (i.e.: at least one unit of packed RBC) during their ICU stay, and those who did not.
+Survival was observed over a period of one year following ICU discharge.
+Of note, to assess the impact of transfusion in patient selection at discharge, one-year survival curves were additionally also drawn from admission to ICU with the whole FROG cohort population.
+
+### Primary outcomes 
+
+The primary outcome was one-year survival after ICU discharge.
+The average treatment effect of RBC transfusion on survival was estimated from the survival curves of patients with and without RBC transfusion, from the associated hazard ratio, and from the difference in restricted mean survival times (RMST).
+The latter corresponds to the average number of days gained or lost in terms of overall one-year survival after ICU discharge between patients transfused and not transfused during their ICU stay.
+The confidence intervals associated with these estimated values were computed from 100 bootstrap samples.
+Data description Data were expressed as median (inter-quartile range, IQR), mean ± standard deviation (SD), or number (percentage).
+Numerical data were compared using t-test or Wilcoxon rank test, while categorical variables were compared using χ2 or Fischer's test, as appropriate.
+Repeated measures of continuous variables were handled by a linear mixed model tested with Kenward-Roger's F tests.
+
+### Management of missing data
+
+Two approaches were used for handling the missing values: parametric with multiple imputations by chained equations (MICE), and non-parametric with random forest-missingness incorporated in attributes (MIA).
+Details of the two methods are provided in the Additional Data Supplement Text.
+Number of missing values per variable was also added in Figure E2.
+
+###  Models 
+
+#### Semi-parametric and non-parametric approaches to estimate models. 
+
+Two different approaches were considered to estimate the effect of RBC transfusion on one-year mortality: a semi-parametric approach and a non-parametric approach.
+In the semi-parametric approach, we used Cox models to model the survival and the censoring.
+Treatment allocation was modelled with a propensity score calculated from a logistic regression.
+In the non-parametric approach, we modelled with random survival forests the survival, the censoring, and the treatment allocation.
+Under these semi-parametric and non-parametric approaches, two estimators (see estimators performed below) were applied to assess the study's primary outcomes based on models in which identification of confounding factors is required.
+
+#### Confounding variables selection.
+
+A three round Delphi method including experts in critical care and transfusion was used to identify the confounding variables necessary to build the different models.
+Figure E3 in the additional data supplement figure shows the causal inference diagram applied in a directed acyclic graph, differentiating variables assessed as predictors of the outcome but unrelated to the treatment assignment and the variables assessed as predictors of both treatment and outcome.
+
+### Causal inference estimators 
+
+#### Estimator performed to draw survival curves
+
+The unweighted curves were estimated with the Kaplan Meier estimator, the unweighted hazard ratio was estimated with a Cox regression with only the transfusion status as a variable.
+The weighted survival curves were built with the non-parametric doubly robust estimator, i.e.: augmented inverse probability of treatment weighting - augmented inverse probability of censoring weighting (AIPTW-AIPCW using survival and random forests-MIA method for management of missing values, see Additional Data Supplement Text).
+The weighted hazard ratio was computed from the weighted survival curves by averaging the hazard ratio at each time point.
+This estimator was calculated in our main population of interest: ICU-survivors from ICU-discharge but also, to ensure that the result was not driven by patient's ICU stay, in the whole initial population (including ICU-survivors and non-survivors) from ICU admission.
+
+#### Estimators performed
+
+The three following causal inference estimators were performed to calculate the RMST: 1) the unweighted estimation with no adjustment, then, in parametric and non-parametric approaches of missing values: 2) the inverse probability of treatment weighting with the Kaplan Meier estimator (IPTW), 3) the AIPTW-AIPCW.
+Details of each estimator are provided in the Additional Data Supplement Text.
+
+#### Exploratory analysis
+
+Except for the packed red blood cells unit number threshold associated with one-year mortality (see below), all exploratory analyses were performed using parametric (with MICE) imputed FROG-ICU cohort.
+Packed red blood cells threshold With non-imputed data, we looked for the number of the packed RBC units for which there was a maximal increase in one-year mortality after ICU discharge.
+First, the log linearity assumption was checked using the restricted cubic spline method.
+Given the lack of log linearity, number of packed RBC units transfused has been dichotomized according to an optimal level determined using the most significant p-value from the log rank test.
+Subsequently, this threshold has been validated using a univariate Cox model.
+
+A two-tailed p-value of less than 0.05 was considered significant.
+Statistical analyses were performed using R v3.6.3 (R Foundation for Statistical Computing, Vienna, Austria).
+
+```{r, echo=FALSE}
+knitr::opts_chunk$set(error = FALSE)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+# markdown options depending on the output (html with R code and Word without)
+output <- knitr::opts_knit$get("rmarkdown.pandoc.to")
+output <- "html"
+if (output=="html") knitr::opts_chunk$set(message=FALSE, warning=FALSE, echo = TRUE, comment = "", fig.align = "center", fig.width= 9, fig.height=9)
+if (output=="docx") knitr::opts_chunk$set(message=FALSE, warning=FALSE, echo = FALSE, comment = "", fig.align = "center", fig.width= 9, fig.height=9)
+if (output=="pdf") knitr::opts_chunk$set(message=FALSE, warning=FALSE, echo = FALSE, comment = "", fig.align = "center", fig.width= 9, fig.height=9)
+
+options(max.print = .Machine$integer.max)
+```
+
+# Packages
+
+```{r,include=FALSE}
+library(readr)
+library(FactoMineR)
+library(missMDA)
+library(naniar)
+library(WeightIt)
+library(cowplot)
+library(simsurv)
+library(flexsurv)
+library(MASS)
+library(survMisc)
+library(matrixStats)
+library(RISCA)
+library(readxl)
+library(riskRegression)
+library(reshape2)
+library(rms)
+library(devtools)
+#source_url("https://raw.githubusercontent.com/imkemayer/causal-inference-missing/master/Helper/helper_causalInference.R")
+library(boot)
+library(readxl)
+library(Epi)
+library(flextable)
+library(moments)
+library(stringr)
+library(lubridate)
+library(DiagrammeR)
+library(rstatix)
+library(survminer)
+library(tidyr)
+library(missMDA)
+library(mice)
+library(factoextra)
+library(stdReg)
+library(maditr)
+library(outliers)
+library(VIM)
+library(survival)
+library(ggplot2)
+library(dplyr)
+library(pbapply)
+library(ggfortify)
+library(knitr)
+require(miceadds)
+library(forcats)
+library(glmnet)     # lasso
+library(grf)        # generalized random forests
+library(sandwich)   # for robust CIs
+library(tableone)   # compute standardized mean differences (SMDs)
+library(cobalt)     # plot SMDs
+library(ranger)
+library(Matching)   # for IPW estimates with valid std errors
+library(survey)  
+library(psych)
+#library(MatchThem)
+library(patchwork)
+library(gtsummary)
+library(PropCIs)
+library(stringr)
+```
+
+# Load
+
+```{r,include=FALSE,cache=TRUE}
+set.seed(2600)
+DATA <- read.csv2("DATA/clean_data_FROG_TRANSFUSION_01_06_22.csv",sep=";",dec=",",na.strings=c(""," ","NA"),encoding="latin1")
+DATA_unprocessed <- read.csv2("DATA/clean_data_FROG_TRANSFUSION.csv",sep=";",dec=",",na.strings=c(""," ","NA"),encoding="latin1")
+DATA_whole <- read.csv2("DATA/clean_data_whole_FROG_TRANSFUSION_01_06_22.csv",sep=";",dec=",",na.strings=c(""," ","NA"),encoding="latin1")
+
+DATAtot<-read.csv2("DATA/managed_frog_2.csv",sep=";",dec=",",na.strings=c(""," ","NA"),encoding="latin1")
+DATA_bias <-read.csv2("DATA/DATA_bias.csv",sep=";",dec=",",na.strings=c(""," ","NA"),encoding="latin1")
+
+imp<-load("DATA/mice_with_discharge_impute_30_maxit10_final1_1.Rdata")
+mi.res_with<-mice_with
+  
+imp3<-load("DATA/mice_without_discharge_impute_50_maxit10_final1_1.Rdata")
+mi.res_without<-mice_without
+
+source("FONCTION/utils_surv.R")
+source("FONCTION/function table1 last version.R")
+source("FONCTION/Function_FROG_TRANSFU.r")
+source("FONCTION/RCS plot Logistic Cox VF.R")
+source("FONCTION/causal_survival_function.R")
+```
+
+# Systematic preprocessing
+
+## For ICU survivors from discharge
+
+```{r,cache=FALSE,include=FALSE}
+# for table 1
+DATAtab1<-DATA
+# Choose baseline confounding from DAG
+numerical_baseline_confounding = c(
+'age',
+'ia_igs_2',
+'csabad_sofa', 
+'csabad_hb',
+'csabad_systolic_blood_pressure',
+'csabad_diastolic_blood_pressure',
+'csabad_heart_rate',
+'csabad_eGFR',
+'csabad_creat_umol_L',
+'csabad_lactate',
+'csabad_rate_of_prothrombin'
+)
+for(i in 1:length(numerical_baseline_confounding)){
+    DATA[,numerical_baseline_confounding[i]]<-as.numeric(as.character(DATA[,numerical_baseline_confounding[i]]))
+}
+
+str(DATA[numerical_baseline_confounding])
+
+### Catégorie que j'enlève car pas assez de catégories:
+# < 10
+# mfi_none, csabad_cockroft, csabad_mdrd, mfi_lvad, mfi_xigris, cm_cardiac_resynchronization_therapy_crt
+
+# 20>  nb> 10
+# csabad_systolic_blood_pressure_na, mfi_ecmo, mfi_vit_k_antagonist, ncm_hemodialysis
+
+# J'enlève aussi les na dans les varibales catégoriques
+
+categorical_baseline_confounding <- c('initial_admission_unit', 
+'diagnostic_codeJ',
+'ia_mac_cab',
+'gender',
+"ct_antiplatelets",
+"ct_none_of_the_above",
+"cm_chronic_heart_failure",
+"cm_hypertension",
+"cm_coronary_artery_disease",
+"cm_none_of_the_above",
+"ncm_chronic_renal_disease",
+"ncm_active_recent_malignant_tumors", 
+"ncm_anemia",
+"ncm_none_of_the_above",
+"mfi_rbc_transfusion" ,
+"mfi_renal_replacement_therapy", 
+"mfi_coronary_revascularisation",
+'seuil_transfu_10',
+"mfi_heparin",
+"mfi_antiplatelets"
+)
+
+for(i in 1:length(categorical_baseline_confounding)){
+    DATA[,categorical_baseline_confounding[i]]<-as.factor(as.character(DATA[,categorical_baseline_confounding[i]]))
+}
+str(DATA[categorical_baseline_confounding])
+
+confounder_names <- c(numerical_baseline_confounding,categorical_baseline_confounding)
+only_outcome_pred_names <- c('CRP_T1',
+'GAL_T1',
+'PCT_T1',
+'hsTnI_T1',
+'LFABP_T1',
+'CYSC_T1',
+'NGAL_T1',
+'IL6_T1', # bien - var de ref
+"PROBNP_T1"
+)
+
+for(i in 1:length(only_outcome_pred_names)){
+    DATA[,only_outcome_pred_names[i]]<-as.numeric(as.character(DATA[,only_outcome_pred_names[i]]))
+}
+
+str(DATA[only_outcome_pred_names])
+
+discharge_names<-c("HB_minT",
+                   "hapto_T2",
+                   "GAL_T2",
+                   "PROBNP_T2",
+                   "NGAL_T2",
+                   "NGAL_U_T2",
+                   "CYSC_U_T2",
+                   "LFABP_U_T2",
+                   "PENK_T2",
+                   "IL6_T2",
+                   "hsTnI_T2",
+                   "hapto_IL6_log10",
+                   "sid_eGFR",
+                   "sid_eGFR_cut",
+                   "sid_creat_umol_L",
+                   "dose_rbc")
+
+str(DATA[,discharge_names])
+ discharge_names%in%colnames(DATA)
+
+var<-setdiff(discharge_names,c("HB_minT","sid_eGFR_cut",
+"dose_rbc"))
+for(i in 1:length(var)){
+    DATA[,var[i]]<-as.numeric(as.character(DATA[,var[i]]))
+}
+
+DATA$dose_rbc <- as.factor(as.character(DATA$dose_rbc))
+DATA$sid_eGFR_cut<-as.factor(as.character(DATA$sid_eGFR_cut))
+DATA$HB_minT <- as.factor(as.character(DATA$HB_minT))
+DATA$CGR <- as.factor(as.character(DATA$CGR))
+DATA$status_fu <- as.factor(as.character(DATA$status_fu))
+DATA$delai_an <- as.numeric(as.character(DATA$delai_an))
+DATA$time_inicu <- as.numeric(as.character(DATA$time_inicu))
+
+str(DATA[discharge_names])
+
+DATA_1 <- DATA[c(numerical_baseline_confounding,
+                 categorical_baseline_confounding,
+                 discharge_names,
+                 'delai_an',
+                 'status_1an',
+                 'CGR',
+                 'time_inicu',
+                 'status_fu',
+                 'delai',
+                 only_outcome_pred_names)]
+
+
+DATA_1<-subset(DATA_1, !is.na(delai_an))
+DATA_1<-subset(DATA_1, !is.na(status_1an))
+DATA_1<-subset(DATA_1, !is.na(CGR))
+
+
+DATA <- DATA_1
+head(DATA)
+DATA$T_obs <- DATA$delai + 1
+DATA$status <- DATA$status_fu
+DATA$A <- DATA$CGR
+
+#fit only one part of the curve:
+
+tau_long <- 366
+DATA$T_obs <- pmin(DATA$T_obs,tau_long)
+
+DATA$status <- as.numeric((DATA$T_obs<tau_long &  DATA$status == 1 ))
+
+# Names variables:
+
+X_censure <-  X_outcome <- c(numerical_baseline_confounding,categorical_baseline_confounding,only_outcome_pred_names)
+
+X_treatment <- X_confounding <- c(numerical_baseline_confounding,categorical_baseline_confounding)
+
+tau <- 365
+
+# DATA$T_obs_tau <- pmin(DATA$T_obs,tau)
+# 
+# DATA$status_tau <- as.numeric((DATA$T_obs>=tau) | (DATA$T_obs<tau &  DATA$status == 1 ))
+
+DATA_without_discharge <- within(DATA,rm("HB_minT",
+                   "hapto_T2",
+                   "GAL_T2",
+                   "PROBNP_T2",
+"NGAL_T2",
+"NGAL_U_T2",
+"CYSC_U_T2",
+"LFABP_U_T2",
+"PENK_T2",
+"IL6_T2",
+"hsTnI_T2",
+"hapto_IL6_log10",
+"sid_eGFR",
+"sid_eGFR_cut",
+"sid_creat_umol_L",
+"dose_rbc"))
+
+DATA_with_discharge <- DATA
+```
+
+## For whole population from admission
+
+```{r,cache=FALSE,include=FALSE}
+# for table 1
+DATA_whole_tab1<-DATA_whole
+# Choose baseline confounding from DAG
+numerical_baseline_confounding = c(
+'age',
+'ia_igs_2',
+'csabad_sofa', 
+'csabad_hb',
+'csabad_systolic_blood_pressure',
+'csabad_diastolic_blood_pressure',
+'csabad_heart_rate',
+'csabad_eGFR',
+'csabad_creat_umol_L',
+'csabad_lactate',
+'csabad_rate_of_prothrombin'
+)
+for(i in 1:length(numerical_baseline_confounding)){
+    DATA_whole[,numerical_baseline_confounding[i]]<-as.numeric(as.character(DATA_whole[,numerical_baseline_confounding[i]]))
+}
+
+
+categorical_baseline_confounding <- c('initial_admission_unit', 
+'diagnostic_codeJ',
+'ia_mac_cab',
+'gender',
+"ct_antiplatelets",
+"ct_none_of_the_above",
+"cm_chronic_heart_failure",
+"cm_hypertension",
+"cm_coronary_artery_disease",
+"cm_none_of_the_above",
+"ncm_chronic_renal_disease",
+"ncm_active_recent_malignant_tumors", 
+"ncm_anemia",
+"ncm_none_of_the_above",
+"mfi_rbc_transfusion" ,
+"mfi_renal_replacement_therapy", 
+"mfi_coronary_revascularisation",
+'seuil_transfu_10',
+"mfi_heparin",
+"mfi_antiplatelets"
+)
+
+for(i in 1:length(categorical_baseline_confounding)){
+    DATA_whole[,categorical_baseline_confounding[i]]<-as.factor(as.character(DATA_whole[,categorical_baseline_confounding[i]]))
+}
+str(DATA_whole[categorical_baseline_confounding])
+
+confounder_names <- c(numerical_baseline_confounding,categorical_baseline_confounding)
+only_outcome_pred_names <- c('CRP_T1',
+'GAL_T1',
+'PCT_T1',
+'hsTnI_T1',
+'LFABP_T1',
+'CYSC_T1',
+'NGAL_T1',
+'IL6_T1', # bien - var de ref
+"PROBNP_T1"
+)
+
+for(i in 1:length(only_outcome_pred_names)){
+    DATA_whole[,only_outcome_pred_names[i]]<-as.numeric(as.character(DATA_whole[,only_outcome_pred_names[i]]))
+}
+
+str(DATA_whole[only_outcome_pred_names])
+
+discharge_names<-c("HB_minT",
+                   "hapto_T2",
+                   "GAL_T2",
+                   "PROBNP_T2",
+                   "NGAL_T2",
+                   "NGAL_U_T2",
+                   "CYSC_U_T2",
+                   "LFABP_U_T2",
+                   "PENK_T2",
+                   "IL6_T2",
+                   "hsTnI_T2",
+                   "hapto_IL6_log10",
+                   "sid_eGFR",
+                   "sid_eGFR_cut",
+                   "sid_creat_umol_L",
+                   "dose_rbc")
+
+str(DATA_whole[,discharge_names])
+ discharge_names%in%colnames(DATA_whole)
+
+var<-setdiff(discharge_names,c("HB_minT","sid_eGFR_cut",
+"dose_rbc"))
+for(i in 1:length(var)){
+    DATA_whole[,var[i]]<-as.numeric(as.character(DATA_whole[,var[i]]))
+}
+
+DATA_whole$dose_rbc <- as.factor(as.character(DATA_whole$dose_rbc))
+DATA_whole$sid_eGFR_cut<-as.factor(as.character(DATA_whole$sid_eGFR_cut))
+DATA_whole$HB_minT <- as.factor(as.character(DATA_whole$HB_minT))
+DATA_whole$CGR <- as.factor(as.character(DATA_whole$CGR))
+DATA_whole$status_fu <- as.factor(as.character(DATA_whole$status_fu))
+DATA_whole$delai_fromadm_an <- as.numeric(as.character(DATA_whole$delai_fromadm_an))
+DATA_whole$time_inicu <- as.numeric(as.character(DATA_whole$time_inicu))
+
+DATA_whole$status_fromadm_28d <- as.numeric(as.character(DATA_whole$status_fromadm_28d))
+DATA_whole$delai_fromadm_28d <- as.numeric(as.character(DATA_whole$delai_fromadm_28d))
+
+DATA_whole$status_fromadm_hosp <- as.numeric(as.character(DATA_whole$status_fromadm_hosp))
+DATA_whole$delai_fromadm_hosp <- as.numeric(as.character(DATA_whole$delai_fromadm_hosp))
+DATA_whole$time_inhosp <- as.numeric(as.character(DATA_whole$time_inhosp))
+
+
+str(DATA_whole[discharge_names])
+
+DATA_whole_1 <- DATA_whole[c(numerical_baseline_confounding,
+                 categorical_baseline_confounding,
+                 discharge_names,
+                 'delai_fromadm_an',
+                 'status_fromadm_1an',
+                 'CGR',
+                 'time_inicu',
+                 'status_fu',
+                 'delai_fromadm',
+                 'status_fromadm_28d',
+                 'delai_fromadm_28d',
+                 'status_fromadm_hosp',
+                 'delai_fromadm_hosp',
+                 only_outcome_pred_names)]
+
+
+# DATA_whole_1<-subset(DATA_whole_1, !is.na(delai_fromadm_an))
+# DATA_whole_1<-subset(DATA_whole_1, !is.na(status_fromadm_1an))
+# DATA_whole_1<-subset(DATA_whole_1, !is.na(CGR))
+
+
+DATA_whole <- DATA_whole_1
+head(DATA_whole)
+DATA_whole$T_obs_1y <- DATA_whole$delai_fromadm
+DATA_whole$status_1y <- DATA_whole$status_fu
+DATA_whole$T_obs_28d <- DATA_whole$delai_fromadm_28d
+DATA_whole$status_28d <- DATA_whole$status_fromadm_28d
+DATA_whole$T_obs_hosp <- DATA_whole$delai_fromadm_hosp
+DATA_whole$status_hosp <- DATA_whole$status_fromadm_hosp
+DATA_whole$A <- DATA_whole$CGR
+
+#fit only one part of the curve:
+
+tau_long <- 365
+DATA_whole$T_obs_1y <- pmin(DATA_whole$T_obs_1y,tau_long)
+DATA_whole$status_1y <- as.numeric((DATA_whole$T_obs_1y<=tau_long &  DATA_whole$status_1y == 1 ))
+
+# Names variables:
+
+X_censure <-  X_outcome <- c(numerical_baseline_confounding,categorical_baseline_confounding,only_outcome_pred_names)
+
+X_treatment <- X_confounding <- c(numerical_baseline_confounding,categorical_baseline_confounding)
+
+tau <- 365
+
+DATA_whole_without_discharge <- within(DATA_whole,rm("HB_minT",
+                   "hapto_T2",
+                   "GAL_T2",
+                   "PROBNP_T2",
+"NGAL_T2",
+"NGAL_U_T2",
+"CYSC_U_T2",
+"LFABP_U_T2",
+"PENK_T2",
+"IL6_T2",
+"hsTnI_T2",
+"hapto_IL6_log10",
+"sid_eGFR",
+"sid_eGFR_cut",
+"sid_creat_umol_L",
+"dose_rbc"))
+
+DATA_whole_with_discharge <- DATA_whole
+```
+
+# **Results**
+
+## *Table 1 : Description of characteristics at baseline in the non-weighted population*
+
+```{r,include=FALSE}
+vars<-c("age",
+        "gender",
+        "BMI",
+        "charlson_2",
+              "cm_hypertension",
+              "cm_coronary_artery_disease",
+              "cm_chronic_heart_failure",
+              "cm_diabetes_mellitus",
+              "ncm_copd",
+              "ncm_chronic_renal_disease",
+        "ncm_chronic_liver_disease",
+              "ncm_active_recent_malignant_tumors",
+              "diagnostic_codeJ",
+        "ia_sofa",
+        "ia_igs_2",
+        "rrt",
+        "rbc",
+        "ffp",
+        "sid_hb",
+        "sid_tn_rbc",
+        "sid_systolic_blood_pressure",
+        "sid_diastolic_blood_pressure",
+        "sid_heart_rate",
+        "sid_creat_umol_L",
+        "sid_platelets",
+        "sid_lactate",
+        "time_inicu",
+        "time_inhosp",
+        "status_1an"
+            
+           
+            )
+
+vars.cont<-c("age",
+             "BMI",
+             "charlson_2",
+            "ia_sofa",
+            "ia_igs_2",
+            "sid_hb",
+            "sid_tn_rbc",
+            "sid_systolic_blood_pressure",
+            "sid_diastolic_blood_pressure",
+            "sid_heart_rate",
+            "sid_creat_umol_L",
+            "sid_platelets",
+            "sid_lactate",
+            "time_inicu",
+            "time_inhosp")
+
+vars[!vars%in%colnames(DATAtab1)]
+vars.qual<-setdiff(vars,vars.cont)
+
+for(i in 1:length(vars.qual)){  DATAtab1[,vars.qual[i]]<-as.factor(as.character(DATAtab1[,vars.qual[i]]))}
+str(DATAtab1[,vars.qual])
+
+for(i in 1:length(vars.cont)){  DATAtab1[,vars.cont[i]]<-as.numeric(as.character(DATAtab1[,vars.cont[i]]))}
+str(DATAtab1[,vars.cont])
+```
+
+```{r,include=FALSE}
+roundvars<-rep(0, length(vars.cont))
+roundvars[6]<-1
+roundvars[13]<-1
+
+tab1=Table1(strata="CGR",
+            vars=vars,
+            vars.cont=vars.cont,
+            vars.qual=vars.qual,
+            desc.all=NULL,
+            round.var.cont=roundvars,
+            vars.median=vars.cont,
+            var.equal=T,
+            vars.nonparam=vars.cont,
+            chisq.vars=NULL,
+            exact.vars=NULL,
+            round.percent=0,
+            type=2,
+            verbose=F,
+            data=DATAtab1,
+            put.effectif=T)
+
+
+
+attributes(row.names(tab1))<-NULL
+tab1<-as.data.frame(tab1)
+
+var<-c("Age (years)",
+  "Female gender (%)",
+  "BMI(Kg/m^2)",
+  "Charlson score",
+  "Hypertension",
+  "Coronary artery disease",
+  "Chronic heart failure",
+  "Diabetes mellitus",
+  "Chronic obstructive pulmonary disease",
+  "Chronic renal disease",
+  "Chronic liver disease",
+  "Active or recent malignant Cancer",
+  "Cardiac causes of admission",
+  "Hemorrhagic shock",
+  "Acute respiratory failure",
+  "Neurologic causes of admission",
+  "Others",
+  "Polytrauma",
+  "Post operative-room",
+  "Sepsis",
+  "SOFA score",
+  "SAPS II score",
+  "Renal replacement therapy",
+  "Red blood transfusion",
+  "Platelets transfusion",
+  "Hemoglobin at discharge (g/dl)",
+  "Number of red blood transfusions",
+  "Systolic blood pressure at discharge (mmHg)",
+  "Diastolic blood pressure at discharge (mmHg)",
+  "Heart rate at discharge (bpm)",
+  "Creatinine at discharge (micromol/l)",
+  "Platelets at discharge (/ml)",
+  "lactate at discharge (mmol/l)",
+  "Length of stay in ICU (days)",
+  "Length of stay at hospital (days)",
+  "Non-survivor at one-year post-discharge"
+  )
+
+rownames(tab1)
+tab1$variable<-var
+colnames(tab1)[1]<-"N available\ntotal population"
+colnames(tab1)[2]<-"Total population"
+colnames(tab1)[3]<-"N available\nno transfusion group"
+colnames(tab1)[4]<-"No transfusion group"
+colnames(tab1)[5]<-"N available\ntransfusion group"
+colnames(tab1)[6]<-"Transfusion group"
+names(tab1)
+tab1<-tab1[,c(9,1:7)]
+
+table1<-flextable(as.data.frame(tab1)) %>% autofit() %>%
+      set_caption("Description of the total ICU population at discharge  and according to RBC transfusion during ICU stay ") %>% 
+     align(j = c(2:8), align = "center", part = "all") %>%
+      align(j = 1, align = "left", part = "all")
+```
+
+```{r}
+table1
+```
+
+```{r,include=FALSE, eval=FALSE}
+save_as_docx("table_1"=table1, path="TABLES/table_1.docx")
+```
+
+## *The different methods:*
+
+#### For estimating the effect of the treatment, there are three families of methods:
+
+First, a method that models the response of the covariates on the allocation of the treatment and on the censoring mechanism.
+this is the method using propensity score: Inverse probability weighting (IPW) method.
+
+Second, a model that models the survival time conditional on the covariates: G-formula
+
+Third, methods that combine the first two models.
+These methods are robust to mis-specification of one of the two previous models: Augmented Inverse probability weighting (AIPW)}.
+
+## *Figure 1: One-year survival from discharge according to transfusion status in non-weighted and weighted population*
+
+```{r,include=FALSE}
+#Survival curve (FROG)
+A<-list()
+#out_wb1 <- read.csv("DATA/dataset_to_plot_adjuseted_survival_curve_1.csv") # for adjusted survival curves using MICE + Cox 
+out_wb1 <- read.csv("DATA/dataset_to_plot_adjusted_survival_curve_forest_full.csv") # for adjusted survival curves using MIA + survival_forest
+load(file="DATA/result_HR_final_1")
+
+AHR_mean <- out_wb1$AHR_mean[1]
+AHR_lower <- out_wb1$AHR_lower[1]
+AHR_upper <- out_wb1$AHR_upper[1]
+
+UHR_mean<-result_HR$unadjusted_HR_mean
+UHR_lower<-result_HR$unadjusted_HR_lower
+UHR_upper<-result_HR$unadjusted_HR_upper
+
+breaks<- c(0,91.3125,182.625,273.9375,365.25)
+ 
+xscale="d_m"                     
+xtrans<-switch(xscale,
+               d_m=12/365.25,
+               d_y=1/365.25,
+               m_d=365.25/12,
+               m_y=1/12,
+               y_d=365.25,
+               y_m=12,
+               1)
+
+tau <- 365
+
+DATA_input_KM <- DATA
+
+DATA_input_KM$T_obs_cox <- pmin(DATA_input_KM$T_obs,tau)
+
+DATA_input_KM$status_cox <- as.numeric( (DATA_input_KM$T_obs<tau &  DATA_input_KM$status == 1 ))
+
+KM_graphNM<-survfit( Surv(T_obs_cox,  status_cox) ~ A, data = DATA_input_KM)
+
+A[[1]] <-ggsurvplot(KM_graphNM,
+                    risk.table = T,
+                    title="A/FROG COHORT: UNWEIGHTED",
+                    fun="pct",
+                    legend="none",
+                    legend.title="",
+                    palette = c("blue", "red"),
+                    font.x=c(20,"bold", "black"),
+                    xlab="Time (month)",
+                    ylab="Survival (%)",
+                    font.y=c(20,"bold", "black"),
+                    font.xtickslab = c(1,"bold", "white"),
+                    font.ytickslab = c(20,"bold", "black"),
+                    font.legend = c(20,"bold", "black"),
+                    font.legend.title = c(20,"bold", "black"),
+                    risk.table.y.text.col = T,
+                    risk.table.y.text = FALSE,
+                    risk.table.title="",
+                    risk.table.pos="out",
+                    risk.table.height=0.35,
+                    xlim=c(0,365)
+                    )
+
+
+A[[1]]$plot<- A[[1]]$plot + scale_x_continuous(breaks=breaks,labels=round(breaks*xtrans,2))+ ggplot2::annotate("text", x=200, y=0,label = sprintf("Unweighted HR: %s [%s,%s]", round(UHR_mean,2),round(UHR_lower,2),round(UHR_upper,2)), size = 5) + theme(legend.position = "none")
+
+Table<-ggsurvtable(KM_graphNM,data = DATA_input_KM,
+                   color = "strata",
+                   palette = c("blue", "red"),
+                   y.text = FALSE,
+                   xlim=c(0,365),
+                   legend="none",
+                   break.time.by = 91.25,ylab="") 
+
+
+
+Table$risk.table<- Table$risk.table+ scale_x_continuous(breaks=breaks,labels=round(breaks*xtrans,2))
+
+Table$risk.table$labels$x<-""
+
+Table$risk.table$labels$title<-""
+  
+Table$risk.table$labels$label<-""
+
+Table$risk.table$theme$legend.position<-"none"
+
+A[[1]]$table <-Table$risk.table
+
+A[[1]]$table  <- customize_labels(A[[1]]$table ,
+                                  font.xtickslab = c(20,"bold", "black")
+)
+
+## We build the curve here
+A[[2]] <- ggsurvplot(out_wb1,
+                    risk.table = F,
+                    fun="pct",
+                    title="B/FROG COHORT:WEIGHTED",
+                    legend.labs=c("No transfusion","Transfusion"),
+                    legend="bottom",
+                    legend.title="",
+                    palette = c("blue", "red"),
+                    font.x=c(20,"bold", "black"),
+                    xlab="Time (month)",
+                    ylab="Survival (%)",
+                    font.y=c(20,"bold", "black"),
+                    font.tickslab = c(20,"bold", "black"),
+                    font.legend = c(20,"bold", "black"),
+                    font.legend.title = c(20,"bold", "black"),
+                    xlim=c(0,365))
+
+A[[2]] <- A[[2]] + scale_x_continuous(breaks=breaks,labels=round(breaks*xtrans,2)) + ggplot2::annotate("text",x = 200, y = 0,label = sprintf("Weighted HR: %s [%s,%s]", round(AHR_mean,2),round(AHR_lower,2),round(AHR_upper,2)),size=5) +theme(legend.position = "none")
+
+```
+
+```{r,include=FALSE}
+A[[1]]<-ggarrange(A[[1]]$plot, A[[1]]$table, heights = c(2,0.7), ncol=1,nrow=2)
+A[[2]]<-ggarrange(A[[2]], heights = c(2,0.7), ncol=1,nrow=2)
+
+Fig2<-A[[1]] + A[[2]] +
+  plot_layout(ncol = 2)
+```
+
+```{r}
+Fig2
+```
+
+```{r, include=FALSE, eval = FALSE}
+ggsave("FIGURES/Figure 2.pdf", plot=Fig2, width = 20, height = 20, units = "cm",scale = 1.5, dpi = 300)
+```
+
+## *Figure 2: Average treatment effect of the restricted survival time for the first 365 days after discharge*
+
+```{r,include=FALSE}
+#all_survival_estimator_mi <- read_csv("DATA/all_survival_estimator_bootmi_final2_1.csv") # MICE + parametric, tau=365
+all_survival_estimator_mi <- read_csv("DATA/all_survival_estimators_bootmi_365_final_full.csv") 
+# MICE + parametric, tau=365
+
+all_survival_estimator_mi <- all_survival_estimator_mi[, c("Kaplan_meier","IPTW Kaplan_meier","AIPTW-AIPCW")]
+names(all_survival_estimator_mi)
+label <- names(all_survival_estimator_mi)
+label<-c("Non adjusted","IPTW adjusted","AIPTW AIPCW")
+mean  <- unlist(lapply(all_survival_estimator_mi, mean, na.rm = TRUE))
+median  <- unlist(lapply(all_survival_estimator_mi, median, na.rm = TRUE))
+lower <- unlist(lapply(all_survival_estimator_mi, quantile, probs=c(0.025), na.rm=TRUE))
+upper <- unlist(lapply(all_survival_estimator_mi, quantile, probs=c(0.975), na.rm=TRUE))
+
+df_cox <- data.frame(label, mean, lower, upper)
+
+df_cox$group<-rep("parametric",3)
+row.names(df_cox)<-NULL
+
+
+all_survival_estimator_rf <-read_csv("DATA/all_survival_estimators_forest_100boot_365_final_full.csv") #tau=365
+all_survival_estimator_rf<-all_survival_estimator_rf[,c("Kaplan_meier","IPTW Kaplan_meier")]
+survival_estimator_aiptw_aipcw <- read.csv("DATA/all_survival_estimators_csf_tau365_100boot_final_full.csv")
+all_survival_estimator_rf <- cbind(all_survival_estimator_rf, survival_estimator_aiptw_aipcw)
+
+label <- names(all_survival_estimator_rf)
+label<-c("Non adjusted","IPTW adjusted","AIPTW AIPCW")
+mean  <- unlist(lapply(all_survival_estimator_rf, mean, na.rm = TRUE))[-4]
+median  <- unlist(lapply(all_survival_estimator_rf, median, na.rm = TRUE))
+lower <- unlist(lapply(all_survival_estimator_rf, quantile, probs=c(0.025), na.rm=TRUE))[-4]
+upper <- unlist(lapply(all_survival_estimator_rf, quantile, probs=c(0.975), na.rm=TRUE))[-4]
+
+df_forest <- data.frame(label, mean, lower, upper)
+
+df_forest$group<- rep("non-parametric", 3)
+
+row.names(df_forest)<-NULL
+
+df = rbind(df_cox,df_forest)
+
+
+df$label <- factor(df$label, levels=c("Non adjusted","IPTW adjusted", "AIPTW AIPCW"))
+
+
+Fig2 <- ggplot(df, aes(x=label, y=mean, ymin=lower, ymax=upper,col=group,fill=group)) + 
+#specify position here
+  coord_flip()+
+  geom_errorbar(size=1.5,position=position_dodge(width = 1))  +
+  geom_hline(yintercept=0, lty=2) +
+  geom_point(size=3,position=position_dodge(width = 1)) +
+  ylab("Restricted mean survival time (days)") +
+  xlab("Models")+
+  scale_fill_manual(values=c("darkorange","darkorange4"))+
+  scale_color_manual(values=c("darkorange","darkorange4"))+
+  theme(axis.text.x = element_text(face="bold",size = 15),
+              axis.text.y  = element_text(face="bold",size = 15),
+                                           axis.title.y = element_text(size = 15),
+                                           axis.title.x = element_text(size = 15),
+        legend.position="bottom",
+        legend.title = element_blank(),
+        panel.background = element_rect(fill = "white", colour = "grey50"))
+
+```
+
+The survival curve and the censoring mechanism are estimated by a cox model with the covariates resposible to the outcome.
+The propensity score is estimated by a forest regression with the confounding variables.
+The missing data is handled by multiple imputation (5 iterations).
+The multiple imputation model include the outcome and all variables to be considered in the different models.
+The variance is obtained with bootstrapping (100 iterations)
+
+```{r}
+Fig2
+```
+
+```{r, include=FALSE, eval=FALSE}
+ggsave("FIGURES/Figure 2.pdf", plot=Fig2, width = 10, height = 10, units = "cm",scale = 1.5, dpi = 300)
+```
+
+## *Figure E1: Summary of the statistical analysis performed. MICE: multiple imputations by chained equations RF-MIA: random forest-missingness incorporated in attributes, AIPTW-AIPCW: augmented inverse probability of treatment weighting - augmented inverse probability of censoring weighting, IPTW: inverse probability of treatment weighting.*
+
+```{r,echo=FALSE}
+knitr::include_graphics("FIGURES/Figure E1.pdf")
+```
+
+## *Figure E2: Absolute number of missing values in patients discharged alive in the FROG ICU cohort (n=1551). A: admission, CRP: C reactive protein, CV: cardiovascular, D: discharge, DBP: diastolic blood pressure, eGFR: glomerular filtration rate, I: inclusion, IL6: interleukin 6, LFABP: liver fatty acid binding protein (log), NGAL: neutrophil gelatinase associated lipocalin, p: plasma, PT: prothrombin time, RBC: red blood cells, RRT: renal replacement therapy, SBP: systolic blood pressure.*
+
+```{r, include=FALSE}
+
+FigE2<-DATA%>% 
+  select('initial_admission_unit', 
+         'diagnostic_codeJ',
+         'ia_mac_cab',
+         'gender',
+         "ct_antiplatelets",
+         "ct_none_of_the_above",
+         "cm_chronic_heart_failure",
+         "cm_hypertension",
+         "cm_coronary_artery_disease",
+         "cm_none_of_the_above",
+         "ncm_chronic_renal_disease",
+         "ncm_active_recent_malignant_tumors", 
+         "ncm_anemia",
+         "ncm_none_of_the_above",
+         "mfi_rbc_transfusion" ,
+         "mfi_renal_replacement_therapy", 
+         "mfi_coronary_revascularisation",
+         'seuil_transfu_10',
+         "mfi_heparin",
+         "mfi_antiplatelets",
+         'age',
+         'ia_igs_2',
+         'csabad_sofa', 
+         'csabad_hb',
+         'csabad_systolic_blood_pressure',
+         'csabad_diastolic_blood_pressure',
+         'csabad_heart_rate',
+         'csabad_eGFR',
+         'csabad_creat_umol_L',
+         'csabad_lactate',
+         'csabad_rate_of_prothrombin',
+         'CRP_T1',#
+         'GAL_T1',#
+         'PCT_T1',#
+         'hsTnI_T1',#
+         'LFABP_T1',#
+         'CYSC_T1',#
+         'NGAL_T1',#
+         'IL6_T1',#
+         "PROBNP_T1",#
+         "HB_minT",
+         "hapto_T2",
+         "GAL_T2",
+         "PROBNP_T2",
+         "NGAL_T2",
+         "NGAL_U_T2",
+         "LFABP_U_T2",
+         "PENK_T2",
+         "IL6_T2",
+         "hsTnI_T2",
+         "hapto_IL6_log10",
+         "sid_eGFR",
+         "sid_creat_umol_L",
+         "dose_rbc")%>%
+  rename('initial A unit'='initial_admission_unit', 
+         "diagnostic at A" = 'diagnostic_codeJ',
+         'A Mac Cab'= 'ia_mac_cab',
+         'gender'='gender',
+         'chronic antiplatelets' = "ct_antiplatelets",
+         'no chronic treatment' = "ct_none_of_the_above",
+         'chronic heart failure'  = "cm_chronic_heart_failure",
+         'prior hypertension' = "cm_hypertension",
+         'prior coronary artery disease'= "cm_coronary_artery_disease",
+         'no CV comorbidity' = "cm_none_of_the_above",
+         'chronic renal disease' = "ncm_chronic_renal_disease",
+         'active or recent malignancy' ='ncm_active_recent_malignant_tumors', 
+         'chronic anemia' = "ncm_anemia",
+         'no chronic comorbidity' = "ncm_none_of_the_above",
+         'rbc transfusion between A-I' = "mfi_rbc_transfusion" ,
+         'RRT between A-I'  = "mfi_renal_replacement_therapy", 
+         'coronary revascularisation between A-I' = "mfi_coronary_revascularisation",
+         'high transfusion threshold' = 'seuil_transfu_10',
+         'heparin between A-I' = "mfi_heparin",
+         'antiplatelets between A-I' = "mfi_antiplatelets",
+         'age at I'='age',
+         'SAPS 2'= 'ia_igs_2',
+         'SOFA at I'='csabad_sofa', 
+         'hemoglobin at I' = 'csabad_hb',
+         'SBP at I' = 'csabad_systolic_blood_pressure',
+         'DBP at I' = 'csabad_diastolic_blood_pressure',
+         'heart rate at I' = 'csabad_heart_rate',
+         'eGFR at I' = 'csabad_eGFR',
+         'creatine at I' = 'csabad_creat_umol_L',
+         'lactate at I'= 'csabad_lactate',
+         'PT rate at I' = 'csabad_rate_of_prothrombin',
+         'CRP at I' = 'CRP_T1',#
+         'galectine 3 at I' = 'GAL_T1',#
+         'PCT at I' = 'PCT_T1',#
+         'hsTnI at I' = 'hsTnI_T1',#
+         'LFABP at I'  = 'LFABP_T1',#
+         'cystatine c at I' = 'CYSC_T1',#
+         'pNGAL at I' = 'NGAL_T1',#
+         'IL6 at I' = 'IL6_T1',#
+         'NTproBNP at I'  = "PROBNP_T1",#
+         'minimal hemoglobin level'="HB_minT",
+         'haptoglobin at D' = "hapto_T2",
+         'galectine 3 at D' = "GAL_T2",
+         'NTproBNP at D' = "PROBNP_T2",
+         'pNGAL at D' = "NGAL_T2",
+         'uNGAL at D' = "NGAL_U_T2",
+         'uLFABP at D' = "LFABP_U_T2",
+         'penkid at D' = "PENK_T2",
+         'IL6 at D' = "IL6_T2",
+         'hsTnI at D' = "hsTnI_T2",
+         'haptoglobin on IL6 (log10)' = "hapto_IL6_log10",
+         'eGFR at D' =  "sid_eGFR",
+         'creatinin at D' = "sid_creat_umol_L",
+         'rbc dose' = "dose_rbc")
+
+
+```
+
+```{r}
+gg_miss_var(FigE2)
+```
+
+## *Figure E3: Directed acyclic diagram for variables associated with both the transfusion and the one-year mortality (red) and variables only associated with the outcome (blue). A, admission; I, Inclusion, A-I, Admission -- Inclusion. DBP: diastolic blood pressure, eGFR: estimated glomerular filtration rate, RRT: renal replacement therapy, SAPS2: simplified acute physiology score II, SBP: systolic blood pressure, SOFA: sequential organ failure assessment*
+
+```{r,echo=FALSE}
+knitr::include_graphics("FIGURES/Figure E3.pdf")
+```
+
+## *Figure E4 : Flow chart*
+
+```{r,include=FALSE}
+FigE4 <- grViz("digraph flowchart 
+{
+      # node definitions with substituted label text
+      
+      node [fontname = Helvetica, shape = rectangle, color=black,penwidth=1]
+      edge [arrowhead='normal']
+      tab1 [label = 'Whole database\n (2087 patients)']
+      tab2 [label = 'Discharged alive\n (1635 patients)']
+      tab3 [label = 'Partial or no follow-up \n  (71 patients) \n no transfusion data \n (13 patients) ']
+      tab4 [label = 'Included\n (1551)']
+      
+       
+       tab1 -> tab2 -> tab3->tab4;     
+
+      # 
+      node [shape = rectangle,penwidth = 2,fontname = Helvetica, color = white]
+      E [label=''] 
+      edge [arrowhead='none', color=white]
+      {rank=same; tab1 -> E}   
+
+      graph [layout = dot, label = 'FROG DATABASE']
+  
+    }
+      ")
+```
+
+```{r}
+FigE4
+```
+
+```{r,include=FALSE, eval=FALSE}
+FigE4 %>%
+  htmltools::html_print() %>%
+  webshot::webshot(file = "FIGURES/Figure E4.pdf")
+```
+
+## *Figure E5: Timing of the first RBC transfusion from inclusion in the FROG-ICU cohort. Patients in whom the first transfusion was administered after day 25 are not represented on the Figure (n= 4 patients)*
+
+```{r, include=FALSE}
+FigE5<-ggplot(DATAtab1, aes(x=delai_incl_transfu_rbc)) + 
+  geom_histogram(color="black", fill="white")+
+  geom_vline(aes(xintercept=median(delai_incl_transfu_rbc, na.rm=T)),
+            color="blue", linetype="dashed",size=1)+
+  scale_x_continuous(limits=c(0, 30)) +
+    xlab("Day of the first transfusion from inclusion")+
+    ylab("Number of patients")+
+   theme(axis.title.x = element_text( face="bold", size=20),
+          axis.title.y = element_text( face="bold", size=20),
+          axis.text.x = element_text(face="bold", size=20),
+          axis.text.y = element_text(face="bold", size=20 ),
+          legend.position = "none")+
+   annotate("text", x = 5, y = 120, label = paste("missing values:", table(DATAtab1$CGR==1)[2]-table(!is.na(DATAtab1$delai_adm_transfu_rbc))[2]), hjust = 0)+
+   annotate("text", x = 5, y = 110, label = paste("median for the first transfusion:", median(DATAtab1$delai_incl_transfu_rbc, na.rm=T), "days"), hjust = 0)
+
+medtrans<-quantile(DATAtab1$delai_incl_transfu_rbc, na.rm=T, probs=c(0.25,0.5,0.75))
+
+```
+
+```{r}
+FigE5
+```
+
+La médiane du délai d'inclusion transfusion est de `r medtrans[2]` (`r medtrans[1]`-`r medtrans[3]`) jours.
+
+```{r, eval=F}
+ggsave("FIGURES/Figure E5.pdf", plot=FigE5, width = 15, height = 10, units = "cm",scale = 1.5, dpi = 300)
+```
+
+## *Figure E6: Lowest Hb values evolution from admission to discharge in the non-matched population according to transfusion status. Data were collected at admission, day 1 to 3 and then bi-weekly until discharge. P value represent the interaction between time points and transfusion status on Hb values*
+
+```{r, include=FALSE}
+#Creation d'un subset comprenant les Hb, les groupes
+HB<-DATAtab1[,c("patient_no","csabad_hb","sti_hb_lowest_1","sti_hb_lowest_2","sti_hb_lowest_3","sti_hb_lowest_4","sti_hb_lowest_5","sti_hb_lowest_6","sti_hb_lowest_7","sti_hb_lowest_8","sti_hb_lowest_9","CGRc")]
+colnames(HB)<-c("ID","admission", "day 1", "day 2", "day 3", "beginning\nWeek1","end\nWeek1","beginning\nWeek2","end\nWeek2","beginning\nWeek3","end\nWeek3","CGRc"   )
+names(HB)
+HBLF<-melt(HB, id.vars = c("CGRc", "ID"))
+names(HBLF)
+colnames(HBLF)[colnames(HBLF)=="variable"]<-"TIMES"
+HBLF$CGRc<-as.factor(HBLF$CGRc)
+str(HBLF$CGR)
+table(is.na(HBLF$value))
+```
+
+```{r, include=FALSE, cache=TRUE, eval = FALSE}
+#Analyse de variance à 2 facteurs avec données répétées
+##inspection valeurs
+HBLFna<-na.omit(as.data.frame(HBLF))
+dim(HBLFna)
+HBLFna$CGRc<-as.factor(as.character(HBLFna$CGRc))
+HBLFna$ID<-as.factor(as.character(HBLFna$ID))
+str(HBLFna)
+
+##Description des valeurs
+HBLFna %>%
+  group_by(CGRc, TIMES) %>%
+  get_summary_stats(value, type = "mean_sd")
+
+##Valeurs aberrantes
+HBLFna %>%
+  group_by(CGRc, TIMES) %>%
+  identify_outliers(value)
+
+table(is.na(HBLFna))
+names(HBLFna)
+##Normalité
+ggqqplot(HBLFna, "value", ggtheme = theme_bw()) +
+  facet_grid(TIMES ~ CGRc, labeller = "label_both")
+
+##Modèle linéaire mixte
+levels(HBLFna$TIMES)<-c(0:3,7,10.5,14,17.5,21,24.5)
+HBLFna$TIMES<-as.numeric(as.factor(HBLFna$TIMES))                     
+str(HBLFna$TIMES)
+
+
+mod <- lmerTest::lmer(value ~ TIMES * CGRc + (1 | ID), data = HBLFna)
+summary(mod)
+mod1 <- lmerTest::lmer(value ~ TIMES * CGRc + (1 + TIMES| ID), data = HBLFna)
+summary(mod1)
+a<-anova(mod1, ddf = "Kenward-Roger")
+pval<-ifelse(a$`Pr(>F)`[3]<0.0001, "0.0001",round(a$`Pr(>F)`[3],4))
+```
+
+```{r,include=FALSE}
+FigE6<-ggplot(HBLF, aes(x =TIMES, y = value, fill=CGRc) ) + 
+  geom_boxplot()+ 
+  theme_light()+
+  xlab("Time points")+
+  ylab("Lowest Hb value (g/dl)")+
+  theme(legend.position="bottom",legend.title = element_blank())+
+  geom_hline(yintercept=8, linetype="dashed", color = "grey", size=1.2)+
+  scale_fill_manual(breaks = c("Transfusion", "No transfusion"), 
+                       values=c("red", "blue"))+
+   annotate("text", x = 7, y = 18, label = paste("p<0.0001"),hjust = 0)+
+  theme(axis.title.x = element_text( face="bold", size=15),
+               axis.title.y = element_text( face="bold", size=15),
+               axis.text.x = element_text(face="bold", size=15),
+               axis.text.y = element_text(face="bold", size=15 ))
+```
+
+```{r}
+FigE6
+```
+
+```{r, include=FALSE, eval = FALSE}
+ggsave("FIGURES/Figure E6.pdf", plot=FigE6, width = 20, height = 10, units = "cm",scale = 1.2, dpi = 300)
+```
+
+## *Figure E7: Probability to receive transfusion in the transfusion group and in the non-transfusion group in the FROG-ICU cohort. Panel A: The probability has been estimated according to a logistic regression with the baseline confounding variables excluding those impacting only the outcome (blue covariates of Figure E2). Panel B: The estimation of the probability has been done using random forests with all the confounding variables excluding those impacting only the outcome (blue covariates of Figure E2).*
+
+```{r,include=FALSE}
+load("DATA/e_hat_mean_final_1")
+levels(DATA$A)<-c("not transfused","transfused")
+FigE7a <- ggplot(DATA, aes( x=e_hat_mean,fill=as.factor(A))) +
+    geom_density(alpha=0.6)+
+  ggtitle("A")+
+  xlab("Probability to receive \n transfusion")+
+  ylab("density of patients")+
+  theme(axis.title.x = element_text( face="bold", size=20),
+               axis.title.y = element_text( face="bold", size=20),
+               axis.text.x = element_text(face="bold", size=20),
+               axis.text.y = element_text(face="bold", size=20 ),
+          legend.position="bottom",
+          legend.title = element_blank())+
+  scale_fill_manual(values=c("blue", "red"))
+```
+
+```{r,include=FALSE}
+load("DATA/e_hat_mean_forest_final_1")
+
+FigE7b <- ggplot(DATA, aes( x=e_hat_mean_forest,fill=as.factor(A)))+
+  geom_density(alpha=0.6)+
+    ggtitle("B")+
+  xlab("Probability to receive \n transfusion")+
+  ylab("density of patients")+
+  theme(axis.title.x = element_text( face="bold", size=20),
+               axis.title.y = element_text( face="bold", size=20),
+               axis.text.x = element_text(face="bold", size=20),
+               axis.text.y = element_text(face="bold", size=20 ),
+          legend.position="bottom",
+          legend.title = element_blank())+
+  scale_fill_manual(values=c("blue", "red"))
+```
+
+```{r}
+FigE7<-FigE7a+FigE7b
+FigE7
+```
+
+```{r}
+ggsave("FIGURES/Figure E7.pdf", plot=FigE7, width = 40, height = 20, units = "cm",scale = 1.2, dpi = 300)
+```
+
+## *Figure E8: Standardized mean difference of confounding variables for the unweighted population and the weighted population given the inverse probability weighting score in the FROG-ICU cohort. Confounding variables included variables at baseline associated to both transfusion prescription and outcome. I: inclusion; neuro: neurological failure; ARF: acute respiratory failure, PO: post-operative scheduled and unscheduled; CS: cardiogenic shock and cardiac arrest; SS: severe sepsis or septic shock; HS: hemorrhagic shock including trauma; others: acute liver failure, acute kidney failure, hypovolemic shock, anaphylactic shock, multiple organ failure, acute pancreatitis, metabolic; F: female; cv: cardiovascular, C-V: cardio-vascular, eGFR: glomerular filtration rate; PT: prothrombine time.*
+
+```{r,include=FALSE}
+load("DATA/loveplot.out_1")
+var.names<-c(age="age",
+                            csabad_sofa="SOFA at I",
+                            csabad_systolic_blood_pressure="systolic blood pressure at I",
+                            csabad_heart_rate="heart rate at I ",
+                            csabad_creat_umol_L="creatinin at I",
+                            csabad_rate_of_prothrombin="PT rate at I",
+                            diagnostic_codeJ="diagnostic",
+                            gender="gender",
+                            cm_hypertension="hypertension",
+                            csabad_diastolic_blood_pressure="diastolic blood pressure at I",
+                            mfi_renal_replacement_therapy="renal replacement",
+                            seuil_transfu_10="high transfusion threshold",
+                            mfi_antiplatelets="platelet transfusion before I",
+                            ia_igs_2="SAPS2",
+                            csabad_hb="hemoglobin rate at I",
+                            csabad_eGFR="eGFR at I",
+                            csabad_lactate="lactate at I",
+                            gender="gender",
+                            ia_mac_cab="Mac cab score",
+                            initial_admission_unit="initial admission unit",
+                            ct_antiplatelets="chronic antiplatelets therapy",
+                            cm_coronary_artery_disease="chronic coronary disease",
+                            ncm_chronic_renal_disease="chronic renal disease",
+                            ncm_anemia="chronic anemia",
+                            mfi_rbc_transfusion="RBP transfusion before I ",
+                            mfi_coronary_revascularisation="PCI before I ",
+                            mfi_heparin="heparin treatment before I",
+                            ncm_chronic_disease="any chronic disease",
+                            ncm_active_recent_malignant_tumors="recent malignant tumor",
+                            ct_none_of_the_above="no medical treatment",
+             cm_none_of_the_above="no medical history",
+             cm_chronic_heart_failure="chronic heart failure"
+                            )
+set.cobalt.options(binary = "std")
+FigE8 <- love.plot(loveplot.out,
+                          threshold = .1,
+                          var.order = "unadjusted",
+                          var.names=var.names)
+
+```
+
+```{r}
+FigE8
+```
+
+```{r, include=FALSE, eval=FALSE}
+ggsave("FIGURES/Figure E8.pdf", plot=FigE8, width = 10, height = 20, units = "cm",scale = 1.5, dpi = 300)
+```
+
+## *Figure E9: One-year survival from admission in the whole population of the FROG-ICU cohort PANEL A: Unweighted; PANEL B: Weighted. For the whole population sample size from 2087 patients,72 patients had no or partial follow up and 30 no transfusion data resulting in 1071 patients in the no transfusion group and 914 patients in the transfusion group.*
+
+```{r,include=FALSE}
+#Survival curve (FROG)
+A<-list()
+out_wb1_whole <- read.csv("DATA/dataset_whole_365_to_plot_adjusted_survival_curve_forest_1.csv") # for adjusted survival curves using MIA + survival_forest
+load(file="DATA/result_HR_whole_365_final_1")
+
+AHR_mean <- out_wb1_whole$AHR_mean[1]
+AHR_lower <- out_wb1_whole$AHR_lower[1]
+AHR_upper <- out_wb1_whole$AHR_upper[1]
+
+UHR_mean<-result_HR_whole$unadjusted_HR_mean
+UHR_lower<-result_HR_whole$unadjusted_HR_lower
+UHR_upper<-result_HR_whole$unadjusted_HR_upper
+
+breaks<- c(0,91.3125,182.625,273.9375,365.25)
+ 
+xscale="d_m"                     
+xtrans<-switch(xscale,
+               d_m=12/365.25,
+               d_y=1/365.25,
+               m_d=365.25/12,
+               m_y=1/12,
+               y_d=365.25,
+               y_m=12,
+               1)
+
+tau <- 365
+
+DATA_input_KM <- DATA_whole
+DATA_input_KM$T_obs <- DATA_input_KM$T_obs_1y
+DATA_input_KM$status <- DATA_input_KM$status_1y
+
+DATA_input_KM$T_obs_cox <- pmin(DATA_input_KM$T_obs,tau)
+
+DATA_input_KM$status_cox <- as.numeric( (DATA_input_KM$T_obs<tau &  DATA_input_KM$status == 1 ))
+
+KM_graphNM<-survfit( Surv(T_obs_cox,  status_cox) ~ A, data = DATA_input_KM)
+
+A[[1]] <-ggsurvplot(KM_graphNM,
+                    risk.table = T,
+                    title="A/FROG COHORT: UNWEIGHTED",
+                    fun="pct",
+                    legend="none",
+                    legend.title="",
+                    palette = c("blue", "red"),
+                    font.x=c(20,"bold", "black"),
+                    xlab="Time (month)",
+                    ylab="Survival (%)",
+                    font.y=c(20,"bold", "black"),
+                    font.xtickslab = c(1,"bold", "white"),
+                    font.ytickslab = c(20,"bold", "black"),
+                    font.legend = c(20,"bold", "black"),
+                    font.legend.title = c(20,"bold", "black"),
+                    risk.table.y.text.col = T,
+                    risk.table.y.text = FALSE,
+                    risk.table.title="",
+                    risk.table.pos="out",
+                    risk.table.height=0.35,
+                    xlim=c(0,365)
+                    )
+
+
+A[[1]]$plot<- A[[1]]$plot + scale_x_continuous(breaks=breaks,labels=round(breaks*xtrans,2))+ ggplot2::annotate("text", x=200, y=0,label = sprintf("Unweighted HR: %s [%s,%s]", round(UHR_mean,2),round(UHR_lower,2),round(UHR_upper,2)), size = 5) + theme(legend.position = "none")
+
+Table<-ggsurvtable(KM_graphNM,data = DATA_input_KM,
+                   color = "strata",
+                   palette = c("blue", "red"),
+                   y.text = FALSE,
+                   xlim=c(0,365),
+                   legend="none",
+                   break.time.by = 91.25,ylab="") 
+
+
+
+Table$risk.table<- Table$risk.table+ scale_x_continuous(breaks=breaks,labels=round(breaks*xtrans,2))
+
+Table$risk.table$labels$x<-""
+
+Table$risk.table$labels$title<-""
+  
+Table$risk.table$labels$label<-""
+
+Table$risk.table$theme$legend.position<-"none"
+
+A[[1]]$table <-Table$risk.table
+
+A[[1]]$table  <- customize_labels(A[[1]]$table ,
+                                  font.xtickslab = c(20,"bold", "black")
+)
+
+## We build the curve here
+A[[2]] <- ggsurvplot(out_wb1_whole,
+                    risk.table = F,
+                    fun="pct",
+                    title="B/FROG COHORT:WEIGHTED",
+                    legend.labs=c("No transfusion","Transfusion"),
+                    legend="bottom",
+                    legend.title="",
+                    palette = c("blue", "red"),
+                    font.x=c(20,"bold", "black"),
+                    xlab="Time (month)",
+                    ylab="Survival (%)",
+                    font.y=c(20,"bold", "black"),
+                    font.tickslab = c(20,"bold", "black"),
+                    font.legend = c(20,"bold", "black"),
+                    font.legend.title = c(20,"bold", "black"),
+                    xlim=c(0,365))
+
+A[[2]] <- A[[2]] + scale_x_continuous(breaks=breaks,labels=round(breaks*xtrans,2)) + ggplot2::annotate("text",x = 200, y = 0,label = sprintf("Weighted HR: %s [%s,%s]", round(AHR_mean,2),round(AHR_lower,2),round(AHR_upper,2)),size=5) +theme(legend.position = "none")
+
+```
+
+```{r,include=FALSE}
+A[[1]]<-ggarrange(A[[1]]$plot, A[[1]]$table, heights = c(2,0.7), ncol=1,nrow=2)
+A[[2]]<-ggarrange(A[[2]], heights = c(2,0.7), ncol=1,nrow=2)
+
+FigE9<-A[[1]] + A[[2]] +
+  plot_layout(ncol = 2)
+```
+
+```{r}
+FigE9
+```
+
+```{r, include=FALSE, eval = FALSE}
+ggsave("FIGURES/Figure E9.pdf", plot=FigE9, width = 20, height = 20, units = "cm",scale = 1.5, dpi = 300)
+```
+
+## *Figure E10: Sensitivity analysis for clinical variables according to parameters at discharge in the unweighted FROG-ICU cohort. Reference is no transfusion continuous variables were dichotomized according to median.*
+
+```{r,include=FALSE,cache=T}
+#Préparation des variables en sous groupes
+
+var<-c("diag_trauma",
+       "diag_sepsis",
+        "diag_neuro",
+        "diag_cardiaque",
+        "diag_respi",
+        "cm_chronic_heart_failure",
+        "cm_coronary_artery_disease",
+        "ncm_chronic_renal_disease"
+       )
+
+for(i in 1:length(var)){
+  DATAtab1[,var[i]]<-as.factor(as.integer(  DATAtab1[,var[i]]))
+}
+
+MAT<-matrix(NA,18,5)
+MAT[1:2,]<- INT("diag_trauma")
+MAT[3:4,]<-INT("diag_sepsis")
+MAT[5:6,]<- INT("diag_neuro")
+MAT[7:8,]<- INT("diag_respi")
+MAT[9:10,]<- INT("diag_cardiaque")
+MAT[11:12,]<- INT("cm_chronic_heart_failure")
+MAT[13:14,]<- INT("cm_coronary_artery_disease")
+MAT[15:16,]<- INT("ncm_chronic_renal_disease")
+MAT[17:18,]<- INT("age")
+
+
+x<-complete(mi.res_with, action = 'long', include = TRUE)
+
+x$sid_creat_umol_L_log<-log(x$sid_creat_umol_L)
+x$sid_eGFR_log<-log(x$sid_eGFR)
+x$NGAL_T2_log<-log(x$NGAL_T2)
+x$CYSC_U_T2_log<-log1p(x$CYSC_U_T2)
+x$NGAL_U_T2_log<-log(x$NGAL_U_T2)
+x$PENK_T2_log<-log(x$PENK_T2)
+x$LFABP_U_T2_log<-log1p(x$LFABP_U_T2)
+x$GAL_T2_log<-log(x$GAL_T2)
+x$GAL_T2_log<-log(x$GAL_T2)
+x$PROBNP_T2_log<-log(x$PROBNP_T2)
+x$hsTnI_T2_log<-log(x$hsTnI_T2)
+range(x$CYSC_U_T2, na.rm=T)
+mi.res_with_1<-as.mids(x)
+
+plot(density(x$CYSC_U_T2_log, na.rm=T))#remove
+
+INT2("mi.res_with","ia_igs_2")
+INT2("mi.res_with","csabad_sofa")
+names(mi.res_with$data)
+
+MAT2<-matrix(NA,16,5)
+MAT2[1:2,]<- INT2("mi.res_with_1","sid_creat_umol_L_log")
+MAT2[3:4,]<-INT2("mi.res_with_1","sid_eGFR_log")
+MAT2[5:6,]<-INT2("mi.res_with_1","hsTnI_T2_log")
+MAT2[7:8,]<-INT2("mi.res_with_1","PROBNP_T2_log")
+MAT2[9:10,]<-INT2("mi.res_with_1","NGAL_T2_log")
+MAT2[11:12,]<-INT2("mi.res_with_1","NGAL_U_T2_log")
+MAT2[13:14,]<-INT2("mi.res_with_1","LFABP_U_T2_log")
+MAT2[15:16,]<-INT2("mi.res_with_1","PENK_T2_log")
+
+MAT[,1]<-str_remove(MAT[,1],c("sid_"))
+MAT[,1]<-str_remove(MAT[,1],c("ncm_"))
+MAT[,1]<-str_remove(MAT[,1],c("cm_"))
+
+MAT[,1]<-str_replace_all(MAT[,1],"_", " ")
+MAT[,1]<-str_replace_all(MAT[,1], " ","_")
+MAT[,1]<-str_replace_all(MAT[,1], "=","")
+MAT[,1]<-str_replace_all(MAT[,1], ">","sup")
+MAT[,1]<-str_replace_all(MAT[,1], "<","inf")
+
+
+MAT2[,1]<-str_remove(MAT2[,1],c("sid_"))
+MAT2[,1]<-str_remove(MAT2[,1],c("ncm_"))
+MAT2[,1]<-str_remove(MAT2[,1],c("cm_"))
+
+MAT2[,1]<-str_replace_all(MAT2[,1],"_", " ")
+MAT2[,1]<-str_replace_all(MAT2[,1], " ","_")
+MAT2[,1]<-str_replace_all(MAT2[,1], "=","")
+MAT2[,1]<-str_replace_all(MAT2[,1], ">","sup")
+MAT2[,1]<-str_replace_all(MAT2[,1], "<","inf")
+
+
+var.name<-c(diag_traumaNo="Polytrauma and/or hemorrhagic shock causes of admission: No",                                         
+            diag_traumaYes ="Polytrauma and/or hemorrhagic shock causes of admission: Yes", 
+       
+diag_sepsisNo="Sepsis cause of admission: No",             
+diag_sepsisYes="Sepsis cause of admission: Yes",  
+
+diag_neuroNo="Neurologic cause of admission: No",  
+diag_neuroYes="Neurologic cause of admission: Yes",  
+
+diag_respiNo=" Respiratory cause of admission: No"   ,  
+diag_respiYes=" Respiratory cause of admission: Yes"   , 
+
+diag_cardiaqueNo="Cardiogenic cause of admission: No",      
+diag_cardiaqueYes="Cardiogenic cause of admission: Yes",  
+
+cm_chronic_heart_failureNo="Chronic heart disease: No",
+cm_chronic_heart_failureYes="Chronic heart disease Yes",
+
+cm_coronary_artery_diseaseNo="Coronary  artery disease: No",
+cm_coronary_artery_diseaseYes="Coronary  artery disease Yes",
+
+ chronic_renal_diseaseNo="Chronic renal disease: No"          ,            
+ chronic_renal_diseaseYes="Chronic renal disease Yes"          ,     
+
+ageinf61="Age ≤ 61 years",  
+agesup61="Age > 61 years")  
+
+round(c(4.20469261939097,
+        4.63314809499448,
+        2.42480272571829,
+        6.35576037817808,
+        4.84418708645859,
+        4.05871738457895,
+        2.53369681395743,
+        4.07890938372169),2)
+
+
+var.name2<-c(
+creat_umol_L_loginf4.20469261939097="log Creatinine ≤ 4.20 "   ,  
+creat_umol_L_logsup4.20469261939097="log Creatinine > 4.20 "  ,   
+   
+eGFR_loginf4.63314809499448= "log eGFR ≤ 4.63 ", 
+eGFR_logsup4.63314809499448="log eGFR > 4.63 ",    
+
+hsTnI_T2_loginf2.42480272571829="log hs Troponin I ≤ 2.42 ",
+hsTnI_T2_logsup2.42480272571829= "log hs Troponin I > 2.42 ",
+
+PROBNP_T2_loginf6.35576037817808="log NT pro BNP ≤ 6.36",
+PROBNP_T2_loginf6.35576037817808= "log NT pro BNP > 6.36",
+
+NGAL_T2_loginf4.84418708645859="log pNGAL ≤ 4.84",
+NGAL_T2_logsup4.84418708645859="log pNGAL > 4.84",
+
+NGAL_U_T2_loginf4.05871738457895="log uN-AGL ≤ 4.06",
+NGAL_U_T2_logsup4.05871738457895="log pN-GAL > 4.06", 
+
+LFABP_U_T2_loginf2.53369681395743="log uLFABP  ≤ 2.53",
+LFABP_U_T2_logsup2.53369681395743="log uLFABP > 2.53",
+
+PENK_T2_loginf4.07890938372169="log pPenKid ≤  4.08",
+PENK_T2_logsup4.07890938372169="log pPenKid > 4.08"
+)
+
+
+OR=as.numeric(MAT[,2])
+CI1=as.numeric(MAT[,3])
+CI2= as.numeric(MAT[,4])
+
+OR_cat <- MAT[,2]
+CI1_cat <- MAT[,3]
+CI2_cat <- MAT[,4]
+pval<- MAT[,5]
+RESULTATS <- data.frame(OR, CI1, CI2, OR_cat, CI1_cat, CI2_cat, pval)
+RESULTATS$OR_CI <- paste(RESULTATS$OR_cat," [",RESULTATS$CI1_cat," - ",RESULTATS$CI2_cat,"]",sep="")
+
+RESULTATS$Ordre <- seq(9.5,1, by=-0.5) 
+
+
+RESULTATS$Variable[1:18] <- MAT[,1]
+RESULTATS$Variable1[1:18]<-var.name
+
+RESULTATS <- rbind(RESULTATS, data.frame(OR=NA, CI1=NA, CI2=NA, OR_CI=NA, Ordre=9.5, Variable=NA,Variable1=NA, OR_cat=NA, CI1_cat=NA, CI2_cat=NA, pval=NA))
+
+RESULTATS$CI2[RESULTATS$CI2==8.27]<-4
+RESULTATS$CI2[RESULTATS$CI2==5.63]<-4
+RESULTATS$CI2[RESULTATS$CI2==5.93]<-4
+write.csv2(RESULTATS, "DATA/resultats_figE10.csv")
+
+
+
+OR_2=as.numeric(MAT2[,2])
+CI1_2=as.numeric(MAT2[,3])
+CI2_2= as.numeric(MAT2[,4])
+
+OR_cat_2 <- MAT2[,2]
+CI1_cat_2 <- MAT2[,3]
+CI2_cat_2 <- MAT2[,4]
+pval_2<- MAT2[,5]
+
+RESULTATS_2 <- data.frame(OR_2, CI1_2,
+                          CI2_2,
+                          OR_cat_2,
+                          CI1_cat_2,
+                          CI2_cat_2,
+                          pval_2)
+
+RESULTATS_2$OR_CI_2 <- paste(RESULTATS_2$OR_cat_2,
+                           " [",
+                           RESULTATS_2$CI1_cat_2,
+                           " - ",
+                           RESULTATS_2$CI2_cat_2,
+                           "]"
+                           ,sep="")
+
+RESULTATS_2$Ordre_2 <- seq(8.5,1, by=-0.5) 
+
+
+RESULTATS_2$Variable[1:16] <- MAT2[,1]
+RESULTATS_2$Variable1[1:16]<-var.name2
+
+RESULTATS_2 <- rbind(RESULTATS_2, data.frame(OR_2=NA, CI1_2=NA, CI2_2=NA, OR_CI_2=NA, Ordre_2=8.5, Variable=NA,Variable1=NA, OR_cat_2=NA, CI1_cat_2=NA, CI2_cat_2=NA, pval_2=NA))
+
+
+write.csv2(RESULTATS_2, "DATA/resultats_figE11.csv")
+
+```
+
+```{r}
+RESULTATS<-read.csv2("DATA/resultats_figE10.csv")
+RESULTATS<-RESULTATS[,-1]
+
+pdf(file = "FIGURES/Figure E10.pdf", width = 13, height = 9, pointsize = 10)
+
+#schéma
+par(mar=c(3,17.5,3,5), mfrow=c(1,1))
+plot(RESULTATS$OR, RESULTATS$Ordre,bty="n",xlim=c(-8,15), ylim=c(1,10.5)
+, pch=c(15),cex=1.5,xaxt="n",yaxt="n",xlab="",ylab="", main="One-year mortality\n in patients receiving in-ICU transfusion. Clinical variables")
+#rajout des axes "sur mesure"
+axis(side=1,at=c(-1,1,5),labels=c("protector",1,"risk factor"),cex.axis=1.1, font=c(2,1,2))
+axis(side=2,at=RESULTATS$Ordre,labels=RESULTATS$Variable1,cex.axis=1.2,las=2, pos = c(-1))
+#ajouts des segments représentant les intervalles de confiance
+segments(x0=RESULTATS$OR, y0=RESULTATS$Ordre,x1=RESULTATS$CI2,lwd=2)
+segments(x0=RESULTATS$CI1, y0=RESULTATS$Ordre,x1=RESULTATS$OR,lwd=2)
+#trait de référence au niveau du 1
+abline(v=1,lty=2,lwd=2,col="grey")
+#ajout du texte créé plus haut OR[IC95]
+text(5, RESULTATS$Ordre,RESULTATS$OR_CI,pos=c(4.5),cex=1.2)
+text(5,10,"OR [95%CI]",pos=4,cex=1.2)
+text(10.5, RESULTATS$Ordre,RESULTATS$pval,pos=c(4.5),cex=1.2)
+text(10.5,10,"p interaction",pos=4,cex=1.2)
+
+#Ajouter fleche
+x0<-c(4,4)
+x1<- c(4.01,4.01)
+y0 <-c(9,9)
+y1 <-c(9,9)
+couleur<-c("black")
+arrows(x0,y0,x1,y1, code=2,lwd=2)
+
+x0<-c(4,4)
+x1<- c(4.01,4.01)
+y0 <-c(5,5)
+y1 <-c(5,5)
+couleur<-c("black")
+arrows(x0,y0,x1,y1, code=2,lwd=2)
+
+x0<-c(4,4)
+x1<- c(4.01,4.01)
+y0 <-c(4,4)
+y1 <-c(4,4)
+couleur<-c("black")
+arrows(x0,y0,x1,y1, code=2,lwd=2)
+
+dev.off()
+```
+
+## *Figure E11: Sensitivity analysis for biomarkers variables according to parameters at discharge in the unweighted FROG-ICU cohort. Reference is no transfusion continuous variables were dichotomized according to median.*
+
+```{r}
+RESULTATS<-read.csv2("DATA/resultats_figE11.csv")
+RESULTATS<-RESULTATS[,-1]
+
+pdf(file = "FIGURES/Figure E11.pdf", width = 13, height = 9, pointsize = 10)
+
+#schéma
+par(mar=c(3,17.5,3,5), mfrow=c(1,1))
+plot(RESULTATS$OR_2*3, RESULTATS$Ordre_2,bty="n",xlim=c(-8,15), ylim=c(1,10)
+, pch=c(15),cex=1,xaxt="n",yaxt="n",xlab="",ylab="", main="One-year mortality\n in patients receiving in-ICU transfusion. Biomarker variables")
+#rajout des axes "sur mesure"
+axis(side=1,at=c(1,4),labels=c(1,"risk factor"),cex.axis=0.5, font=c(2,1,2))
+axis(side=2,at=RESULTATS$Ordre_2,labels=RESULTATS$Variable1,cex.axis=1.2,las=2, pos = c(-1))
+#ajouts des segments représentant les intervalles de confiance
+segments(x0=RESULTATS$OR_2*3, y0=RESULTATS$Ordre,x1=RESULTATS$CI2_2*3,lwd=2)
+segments(x0=RESULTATS$CI1_2*3, y0=RESULTATS$Ordre,x1=RESULTATS$OR_2*3,lwd=2)
+#trait de référence au niveau du 1
+abline(v=1,lty=2,lwd=2,col="grey")
+#ajout du texte créé plus haut OR[IC95]
+text(5, RESULTATS$Ordre,RESULTATS$OR_CI_2,pos=c(4.5),cex=1.2)
+text(5,9.5,"OR [95%CI]",pos=4,cex=1.2)
+text(10.5, RESULTATS$Ordre,RESULTATS$pval_2,pos=c(4.5),cex=1.2)
+text(10.5,9.5,"p interaction",pos=4,cex=1.2)
+
+dev.off()
+```
+
+## *Figure E12: Haptoglobine level normalized by IL6 level. panel A: in RBC transfusion vs RBC no transfusion, panel B: according to eGFR ranges (imputed population)*
+
+```{r, include=FALSE}
+#PANEL A
+MAT<-as.data.frame(IMPT("mi.res_with","hapto_IL6_log10","CGR"))
+pval<-IMPT_pval("mi.res_with","hapto_IL6_log10","CGR")
+
+#verif normalité des residus
+#data_imp<-"mi.res_with"
+#va_dep<-"hapto_IL6_log10"
+#va_indep<-"CGR"
+#fit.t.test <- eval(parse(text=paste0("with(data=",data_imp,",exp=lm(",va_dep, "~", va_indep,"))")))
+#t.test.estimates <- pool(fit.t.test)
+#pval<-summary(t.test.estimates)$p.value[2]
+#pval1<- ifelse(pval<0.0001, "<0.001", pval)
+#print(pval)
+#print(pval1)
+#a<-residuals(getfit(fit.t.test, 1))
+#plot(density(a))
+
+#a<-residuals(getfit(fit.t.test, 2))
+#plot(density(a)) #acceptable
+
+#graph
+g1 <- ggplot(MAT, aes(x=CGR, y=hapto_IL6_log10_mean, color=CGR))+
+    geom_errorbar(aes(ymin=hapto_IL6_log10_mean-hapto_IL6_log10_SD, ymax=hapto_IL6_log10_mean+hapto_IL6_log10_SD), width=.1,size=2) +
+    geom_line() +
+    geom_point(size=6)+
+  xlab("")+
+  ylab("haptoglobin level \n normalized on IL6 level (log10)")+
+  theme(axis.title.x = element_text( face="bold", size=15),
+               axis.title.y = element_text( face="bold", size=15),
+               axis.text.x = element_text(face="bold", size=15),
+               axis.text.y = element_text(face="bold", size=15 ),
+               legend.position = "none")+
+  annotate("text", x = 1, y = 6.8, label = paste("p=",pval),hjust = 0)+
+  ylim(6.5,8.5)+
+  scale_color_manual(values=c("blue", "red"))
+
+
+
+# haptoglobin level according to EGFR  ranges at discharge in total population
+#PANEL B
+mat<-IMPT2("mi.res_with","hapto_IL6_log10","sid_eGFR_cut")
+pval<-IMPT2_pval("mi.res_with","hapto_IL6_log10","sid_eGFR_cut")
+
+#verif normalité des residus
+#data_imp<-"mi.res_with"
+#va_dep<-"hapto_IL6_log10"
+#va_indep<-"sid_eGFR_cut"
+
+#fit.test<-eval(parse(text=paste0("mi.anova(mi.res=",data_imp, ",formula='",va_dep, "~", va_indep,"')")))
+#pval<-eval(parse(text=paste0("round(mi.anova(mi.res=",data_imp, ",formula='",va_dep, "~", va_indep,"')$anova.table[[1,5]],4)")))
+ # pval1<- ifelse(pval<0.0001, "<0.001", pval)
+  #print(pval)
+  #print(pval1)
+#pval
+
+#extract first dataset
+#dat1 <- mice::complete(data=mi.res_with, 1, include=F )
+#lm1 <- stats::lm( hapto_IL6_log10 ~ sid_eGFR_cut, data=dat1 )
+#summary( stats::aov( lm1 ) )
+
+#a<-residuals(lm1)
+#plot(density(a))
+
+#dat1 <- mice::complete(data=mi.res_with, 2, include=F )
+#lm1 <- stats::lm( hapto_IL6_log10 ~ sid_eGFR_cut, data=dat1 )
+
+#b<-residuals(getfit(fit.t.test, 2))
+#plot(density(b)) #acceptable
+
+g2 <- ggplot(mat, aes(x=sid_eGFR_cut, y=hapto_IL6_log10_mean, color=sid_eGFR_cut))+
+    geom_errorbar(aes(ymin=hapto_IL6_log10_mean-hapto_IL6_log10_SD, ymax=hapto_IL6_log10_mean+hapto_IL6_log10_SD), width=.1,size=2) +
+    geom_line() +
+    geom_point(size=6)+
+  xlab("")+
+  ylab("haptoglobin level \n normalized on IL6 level (log10)")+
+  theme(axis.title.x = element_text( face="bold", size=15),
+               axis.title.y = element_text( face="bold", size=15),
+               axis.text.x = element_text(face="bold", size=15),
+               axis.text.y = element_text(face="bold", size=15 ),
+               legend.position = "none")+
+ scale_x_discrete(name ="", 
+                    labels=c("â‰¤82ml/min"="≤ 82 ml/min","82-29 ml/min"="82-29 ml/min",">129ml/min"="> 129 ml/min"))+
+  ylim(6, 9)+
+  annotate("text", x = 1, y = 6, label = paste("p=",pval),hjust = 0)+
+  scale_color_manual(values=c("seagreen4", "seagreen1","seagreen3"))
+```
+
+```{r, include=F}
+FigE12 <- plot_grid(g1,g2, labels = c('A', 'B'), ncol=2, align = 'h')#, #rel_widths = c(1, 1))
+```
+
+```{r, fig.width = 10, fig.height = 10}
+FigE12
+```
+
+```{r, include=FALSE, eval=FALSE}
+ggsave("FIGURES/Figure E12.pdf", plot=FigE12, width = 20, height = 10, units = "cm",scale = 1.5, dpi = 300)
+```
+
+## *Figure E13: Hazard ratio of death according to the number of packed RBC administered during ICU stay in the unweighted FROG-ICU cohort.*
+
+```{r, include=FALSE, eval=F}
+#en logistic
+rcspline.plot(x=as.numeric(DATAtab1$sid_tn_rbc),    y=as.numeric(as.character(DATAtab1$status_1an)),       model="logistic", nk=4, show="prob",plotcl=TRUE, showknots=FALSE, add=FALSE,lty=1,noprint=FALSE,ylim=c(0,1),ylab="Probabilité" , xlab="",  main="Seuils absolus")  #OK
+
+class(DATAtab1$sid_tn_rbc)
+#en linéaire sur la durée
+rcspline.plot(x=as.numeric(as.character(DATAtab1$sid_tn_rbc)), 
+              y=as.numeric(as.character(DATAtab1$delai_mois)), 
+              model="cox", nk=4, event=as.numeric(as.character(DATAtab1$status_1an)))
+
+```
+
+```{r, include=FALSE}
+#par la p value du test du log rank 
+values<-sort(unique(DATAtab1$sid_tn_rbc))
+
+values<-values[-length(values)]
+
+table(DATAtab1$sid_tn_rbc[!is.na(DATAtab1$delai_mois)&!is.na(DATAtab1$status_1an)])
+
+DATAtab1$delai_mois
+str(DATAtab1$status_1an)
+DATAtab1$sid_tn_rbc
+
+sort<-NULL
+for(k in seq_along(values)){
+  test<-survdiff(Surv(delai_mois,as.numeric(status_1an))~I(sid_tn_rbc>values[k]), data=DATAtab1)
+  p_logrank<-pchisq(test$chisq,df=1, lower.tail=F)
+  sort<-rbind(sort,c(values[k],p_logrank))
+}
+```
+
+le seuil de CGR minimal evalué par la p value la plus grande du log rank test est 0 CGR dans la population totale
+
+Au dela de 0 existe il un seuil ou la mortalité augmente?
+
+```{r, include=FALSE}
+
+DATAtab1CGR<-DATAtab1%>%filter(CGR==1)
+
+values<-sort(unique(DATAtab1CGR$sid_tn_rbc))
+
+values<-values[-c(length(values))]
+
+a<-prop.table(table(DATAtab1CGR$sid_tn_rbc[!is.na(DATAtab1CGR$delai_mois)&!is.na(DATAtab1CGR$status_1an)]))
+
+
+sort<-NULL
+for(k in seq_along(values)){
+  prop<-prop.table(table(DATAtab1CGR$sid_tn_rbc>values[k]))
+  test<-survdiff(Surv(delai_mois,as.numeric(status_1an))~+I(sid_tn_rbc>values[k]), data=DATAtab1CGR)
+  p_logrank<-pchisq(test$chisq, df=1, lower.tail=F)
+  sort<-rbind(sort,c(values[k],p_logrank,prop[1],prop[2]))
+}
+sort.cond<-sort[sort[,3]>0.1 & sort[,4]>0.1,]
+which.min(sort.cond[,2])
+sort.cond[which.min(sort.cond[,2]),1]
+```
+
+Dans la population transfusée il n'y a pas d'association entre la mortalité et le nombre de CGRs transfusés
+
+```{r, include=FALSE}
+#2 est le seuil pour lequel tu as une difference de survie la plus importante par le test du log rank.
+
+#groupe(0), groupe(1-2), groupe(>2)
+
+#Il faut s'assurer que c'est le bon seuil par un cox.
+sort<-NULL
+for(k in seq_along(values)){
+  prop<-prop.table(table(DATAtab1CGR$sid_tn_rbc[DATAtab1CGR$sid_tn_rbc!=0]>values[k]))
+  test<-coxph(Surv(delai_mois,as.numeric(status_1an))~I(sid_tn_rbc==0) + I(sid_tn_rbc>values[k]), data=DATAtab1CGR)
+  sort<-rbind(sort,c(values[k],summary(test)$coef[2,5],prop[1],prop[2]))
+}
+
+sort.cond<-sort[sort[,3]>0.1 & sort[,4]>0.1,]
+which.min(sort.cond[,2])
+sort.cond[which.min(sort.cond[,2]),1]
+```
+
+Dans la population globale, le premier culot augmente la mortalité de facon significative.
+Au dela d'un culot, il n'y a pas de sur-risque de mortalité ou la mortalité est identique.
+
+```{r, include=FALSE}
+#Entre 1 et 2 RBP peut on avoir un seuil plus fin?
+##testons differents modeles 
+coxmodel<-coxph(Surv(delai_mois,as.numeric(status_1an))~I(sid_tn_rbc%in%c(1,2))+ I(sid_tn_rbc>2), data=DATAtab1CGR)
+summary(coxmodel)
+coxmodel2<-coxph(Surv(delai_mois,as.numeric(status_1an))~I(sid_tn_rbc==0)+ I(sid_tn_rbc>2), data=DATAtab1CGR)
+summary(coxmodel2)
+coxmodel3<-coxph(Surv(delai_mois,as.numeric(status_1an))~I(log(sid_tn_rbc+1)), data=DATAtab1CGR)
+summary(coxmodel3)#continue
+AIC(coxmodel3)
+AIC(coxmodel2)
+coxmodel4<-coxph(Surv(delai_mois,as.numeric(status_1an))~I(sid_tn_rbc==0), data=DATAtab1CGR)
+summary(coxmodel4)
+AIC(coxmodel4)
+coxmodel5<-coxph(Surv(delai_mois,as.numeric(status_1an))~I(sid_tn_rbc>0), data=DATAtab1CGR)
+summary(coxmodel5)
+AIC(coxmodel5)
+
+MAT<-matrix(NA,1,5)
+colnames(MAT)<-c("RBP 1,2 ou >2", "RBP 0 ou >2", "RBP continu", "RBP 0", "RBP >0")
+rownames(MAT)<-"AIC"
+MAT[1,]<-c(AIC(coxmodel),AIC(coxmodel2),AIC(coxmodel3),AIC(coxmodel4),AIC(coxmodel5))
+MAT[,which.min(MAT[1,])]
+```
+
+```{r, echo=FALSE}
+kableExtra::kable(MAT)
+```
+
+Le modele de cox associé à un AIC le plus bas (2170.053) est celui pour dès le premier CGR
+
+```{r, include=FALSE}
+
+DATAc<-DATAtab1[DATAtab1$CGR==1,]
+DATAc<-DATAtab1%>%filter(CGR==1)
+#rcspline.plot(x=DATAc$Hb_min,    y=as.numeric(as.character(DATAc$status_1an)),       model="logistic", nk=4)
+```
+
+l augmentation la plus significative de mortalité s'observe à partir d'un culot transfusé sur un modele de Cox quelque soit la concentration Hb la plus basse au cours du séjour
+
+```{r, include=FALSE}
+
+fit<-coxph(Surv(delai_mois,as.numeric(status_1an))~ rcs(sid_tn_rbc, knots=c(0,1,2,7)), data=DATAtab1)
+
+AIC(fit)
+
+fit<-coxph(Surv(delai_mois,as.numeric(status_1an))~ I(sid_tn_rbc==0), data=DATAtab1)
+
+AIC(fit)
+
+DATAfigE13<-na.omit(DATAtab1[,c("delai_mois","status_1an","sid_tn_rbc")])
+
+knots.harrell("sid_tn_rbc",DATAfigE13, 4 ) # ne pas laisser 2 x0=> forcer 1 qui est la reference determiner par l'algorithme de la fonction Rcsplineplot du package Hmisc
+
+#linearity_test(t2event="delai_mois", event="status_1an", model = "cox", var="sid_tn_rbc", adj=NULL, data=DATAfigS7)
+
+
+DATAfigE13$status_1an<-as.numeric(as.character(DATAfigE13$status_1an))
+
+results <- rcs_effect(t2event="delai_mois", event="status_1an", model = "cox",
+                      var="sid_tn_rbc", ref_value = 1, min = 0, max = 67, length = 68, 
+                                          use_rcs=T, knots = c(0,1,2,7), nk=NULL, adj=NULL, data=DATAfigE13)
+save(results, file="DATA/results_mortality_numberRBP")
+```
+
+```{r}
+pdf(file = "FIGURES/Figure E13.pdf", width = 13, height = 9, pointsize = 10)
+par(mar = c(5.1, 4.1, 1.1, 2.1))
+col1 <- rgb(red=0, green=0, blue=1, alpha=1)
+col2 <- rgb(red=0, green=0, blue=1, alpha=0.05)
+
+plot_rcs_effect(results, label_var = "",
+                main = "", xlab="number of RBP", ylab=NULL, ylog=F,
+                lwd=3, cex_lab=1.5, cex_axis=1.5, polygon_ci=T,
+                col1 = col1, col2 = col2, xaxis=c(0:15), yaxis=NULL, ylim = c(0.4, 2),xlim=c(0,15),
+                hline=T, col_hline = "black", lwd_hline=1.5,  
+                add_pglobal=T, name_pglobal="overall effect: ", xpglobal = 5, ypglobal=NULL, adj_pglobal=0, cex_pglobal=1,
+                add_plin=F, name_plin=NULL, xplin = NULL, yplin=NULL, adj_plin=0, cex_plin=1)
+segments(x0=1, y0=0, y1=1,lwd=2,col="red")
+segments(x0=2, y0=0, y1=1.109,lwd=2,col="Blue")
+axis(side=1, at=1, labels = TRUE, cex.axis=1.2)
+dev.off()
+```
+
+## *Table E1: Exploratory analyses in the unweighted FROG-ICU cohort: Renal biomarkers (log transformed) according to RBC transfusion during ICU stay. eGFR: glomerular filtration rate, NGAL: neutrophil gelatinase associated lipocalin, p: plasma, u: urinary.*
+
+```{r,include=FALSE}
+vars.cont<-c(
+  "sid_creat_umol_L",
+        "sid_eGFR",
+        "NGAL_T2",
+        "NGAL_U_T2",
+        "LFABP_U_T2",
+        "PENK_T2"         )
+
+var.names<-c(
+        sid_eGFR="eGFR at D (log)",
+        sid_creat_umol_L="Creatinine at D (log)",
+        NGAL_T2=" p N-GAL  at D (log)",
+        NGAL_U_T2="u N-GAL at D (log)",
+        LFABP_U_T2="u liver fatty acid binding protein  at D (log)",
+        PENK_T2="p PenKid  at D (log)"
+  )
+```
+
+```{r,include=FALSE}
+MAT<-matrix(NA,length(vars.cont),5)
+colnames(MAT)<- c("Variables", "Total\nmean+/-SD","No transfusion group\nmean+/-SD","Transfusion group\nmean+/-SD", "p value")
+
+MAT[1,]<-miTABLE("mi.res_with_1","sid_eGFR_log","CGR")
+MAT[2,]<-miTABLE("mi.res_with_1","sid_creat_umol_L_log","CGR")
+MAT[3,]<-miTABLE("mi.res_with_1","NGAL_T2_log","CGR")
+MAT[4,]<-miTABLE("mi.res_with_1","NGAL_U_T2_log","CGR")
+MAT[5,]<-miTABLE("mi.res_with_1","PENK_T2_log","CGR")
+MAT[6,]<-miTABLE("mi.res_with_1","LFABP_U_T2_log","CGR")
+
+mat<-as.data.frame(MAT)
+mat$Variables<-var.names
+
+tableE1<-flextable(as.data.frame(mat)) %>% autofit() %>%
+      set_caption("Table E1: Renal characteristics (log transformed)  according to RBC transfusion during ICU stay ") %>% 
+     align(j = c(1:4), align = "center", part = "all") %>%
+      align(j = 1, align = "left", part = "all")
+  tableE1<-  footnote( tableE1, i = 1, j = 2:4,
+               value = as_paragraph(
+                c("imputed data were used")),
+               ref_symbols = c("*"),
+               part = "header", inline = TRUE)
+```
+
+```{r}
+tableE1
+```
+
+```{r,include=FALSE, eval=FALSE}
+save_as_docx("table_E1"=tableE1, path="TABLES/table_E1.docx")
+```
+
+## *Table E2 : Description of cardiac characteristics according to RBC transfusion during ICU stay*
+
+```{r,include=FALSE}
+vars<-c("GAL_T2",
+              "PROBNP_T2",
+              "hsTnI_T2")
+
+vars.cont<-c( "GAL_T2",
+              "PROBNP_T2",
+              "hsTnI_T2" )
+
+vars.names<-c(GAL_T2="Galectin3 at D (log)",
+              PROBNP_T2="NT pro-BNP at D (log)",
+              hsTnI_T2= "hs Troponin I at D (log)")
+
+vars[!vars%in%colnames(mi.res_with$data)]
+
+vars.qual<-setdiff(vars,vars.cont)
+```
+
+```{r,include=FALSE}
+MAT<-matrix(NA,length(vars),5)
+colnames(MAT)<- c("Variables", "Total\nmean+/-SD","No transfusion group\nmean+/-SD","Transfusion group\nmean+/-SD", "p value")
+
+MAT[1,]<-miTABLE("mi.res_with_1","GAL_T2_log","CGR")
+MAT[2,]<-miTABLE("mi.res_with_1","PROBNP_T2_log","CGR")
+MAT[3,]<-miTABLE("mi.res_with_1","hsTnI_T2_log","CGR")
+
+mat<-as.data.frame(MAT)
+mat$Variables<-vars.names
+
+
+tableE2<-flextable(as.data.frame(mat)) %>% autofit() %>%
+      set_caption("Table E2: Description of cardiac characteristics according to RBC transfusion during ICU stay ") %>% 
+     align(j = c(2:5), align = "center", part = "all") %>%
+      align(j = 1, align = "left", part = "all")
+    tableE2<-  footnote( tableE2, i = 1, j = 2:4,
+               value = as_paragraph(
+                c("imputed data were used")),
+               ref_symbols = c("*"),
+               part = "header", inline = TRUE)
+```
+
+```{r}
+tableE2
+save_as_docx("table_E2"=tableE2, path="TABLES/table_E2.docx")
+```
+
+```{r,include=FALSE, eval=FALSE}
+#verification
+data_imp<-"mi.res_with_1"
+va_dep<-"hsTnI_T2_log"
+va_indep<-"CGR"
+
+  fit.t.test1 <- eval(parse(text=paste0("with(data=",data_imp,",", "exp=lm(",va_dep, "~", va_indep,"))")))
+  t.test.estimates <- pool(fit.t.test1)
+  pval<-round(summary(t.test.estimates)$p.value[2],4)
+  pval<-ifelse(pval<0.0001, "<0.0001",pval)
+  
+a<-residuals(getfit(fit.t.test1, 1))
+plot(density(a))
+
+a<-residuals(getfit(fit.t.test1, 2))
+plot(density(a)) #acceptable
+
+data_imp<-"mi.res_with_1"
+va_dep<-"GAL_T2_log"
+va_indep<-"CGR"
+
+  fit.t.test1 <- eval(parse(text=paste0("with(data=",data_imp,",", "exp=lm(",va_dep, "~", va_indep,"))")))
+  t.test.estimates <- pool(fit.t.test1)
+  pval<-round(summary(t.test.estimates)$p.value[2],4)
+  pval<-ifelse(pval<0.0001, "<0.0001",pval)
+
+a<-residuals(getfit(fit.t.test1, 1))
+plot(density(a))
+
+b<-residuals(getfit(fit.t.test1, 2))
+plot(density(b)) #bien!!
+
+data_imp<-"mi.res_with_1"
+va_dep<-"PROBNP_T2_log"
+va_indep<-"CGR"
+
+  fit.t.test1 <- eval(parse(text=paste0("with(data=",data_imp,",", "exp=lm(",va_dep, "~", va_indep,"))")))
+  t.test.estimates <- pool(fit.t.test1)
+  pval<-round(summary(t.test.estimates)$p.value[2],4)
+  pval<-ifelse(pval<0.0001, "<0.0001",pval)
+
+a<-residuals(getfit(fit.t.test1, 1))
+plot(density(a))
+
+b<-residuals(getfit(fit.t.test1, 2))
+plot(density(b)) #bien!!
+
+
+data_imp<-"mi.res_with_1"
+va_dep<-"sid_eGFR_log"
+va_indep<-"CGR"
+  fit.t.test1 <- eval(parse(text=paste0("with(data=",data_imp,",", "exp=lm(",va_dep, "~", va_indep,"))")))
+  t.test.estimates <- pool(fit.t.test1)
+  pval<-round(summary(t.test.estimates)$p.value[2],4)
+  pval<-ifelse(pval<0.0001, "<0.0001",pval)
+
+a<-residuals(getfit(fit.t.test1, 1))
+plot(density(a))
+
+b<-residuals(getfit(fit.t.test1, 2))
+plot(density(b)) #bien!!
+
+
+data_imp<-"mi.res_with_1"
+va_dep<-"sid_creat_umol_L_log"
+va_indep<-"CGR"
+  fit.t.test1 <- eval(parse(text=paste0("with(data=",data_imp,",", "exp=lm(",va_dep, "~", va_indep,"))")))
+  t.test.estimates <- pool(fit.t.test1)
+  pval<-round(summary(t.test.estimates)$p.value[2],4)
+  pval<-ifelse(pval<0.0001, "<0.0001",pval)
+
+a<-residuals(getfit(fit.t.test1, 1))
+plot(density(a))
+
+b<-residuals(getfit(fit.t.test1, 2))
+plot(density(b)) #bien!!
+
+data_imp<-"mi.res_with_1"
+va_dep<-"NGAL_T2_log"
+va_indep<-"CGR"
+  fit.t.test1 <- eval(parse(text=paste0("with(data=",data_imp,",", "exp=lm(",va_dep, "~", va_indep,"))")))
+  t.test.estimates <- pool(fit.t.test1)
+  pval<-round(summary(t.test.estimates)$p.value[2],4)
+  pval<-ifelse(pval<0.0001, "<0.0001",pval)
+
+a<-residuals(getfit(fit.t.test1, 1))
+plot(density(a))
+
+b<-residuals(getfit(fit.t.test1, 2))
+plot(density(b)) #bien!!
+
+data_imp<-"mi.res_with_1"
+va_dep<-"PENK_T2_log"
+va_indep<-"CGR"
+  fit.t.test1 <- eval(parse(text=paste0("with(data=",data_imp,",", "exp=lm(",va_dep, "~", va_indep,"))")))
+  t.test.estimates <- pool(fit.t.test1)
+  pval<-round(summary(t.test.estimates)$p.value[2],4)
+  pval<-ifelse(pval<0.0001, "<0.0001",pval)
+
+a<-residuals(getfit(fit.t.test1, 1))
+plot(density(a))
+
+b<-residuals(getfit(fit.t.test1, 2))
+plot(density(b)) #bien!!
+
+
+data_imp<-"mi.res_with_1"
+va_dep<-"LFABP_U_T2_log"
+va_indep<-"CGR"
+  fit.t.test1 <- eval(parse(text=paste0("with(data=",data_imp,",", "exp=lm(",va_dep, "~", va_indep,"))")))
+  t.test.estimates <- pool(fit.t.test1)
+  pval<-round(summary(t.test.estimates)$p.value[2],4)
+  pval<-ifelse(pval<0.0001, "<0.0001",pval)
+
+a<-residuals(getfit(fit.t.test1, 1))
+plot(density(a))
+
+b<-residuals(getfit(fit.t.test1, 2))
+plot(density(b)) #bien!!
+
+ 
+library(MKmisc)
+
+#verification par la  fonction mi.t.test 
+mylist <- vector("list", 30)
+i=1
+eval(parse(text=paste0("z",i,"<-complete(mi.res_with_1,",i,",include = F)")))
+eval(parse(text=paste0("hsTnI_T2_log<-z",i,"$hsTnI_T2_log")))
+eval(parse(text=paste0("CGR<-z",i,"$CGR")))
+eval(parse(text=paste0("z",i,"<-data.frame(z1$hsTnI_T2_log,z1$CGR)")))
+mylist[[1]]<- z1
+
+
+for (i in 1:30){
+eval(parse(text=paste0("z",i,"<-complete(mi.res_with_1,",i,",include = F)")))
+eval(parse(text=paste0("hsTnI_T2_log<-z",i,"$hsTnI_T2_log")))
+eval(parse(text=paste0("CGR<-z",i,"$CGR")))
+eval(parse(text=paste0("z",i,"<-data.frame(hsTnI_T2_log,CGR)")))
+}
+
+for (i in 1:30){
+while(i<=30){
+mylist[[i]]<- eval(parse(text=(paste0("z",i))))
+i=i+1
+}
+}
+mi.t.test(mylist, x = "hsTnI_T2_log", y = "CGR",var.equal = T)
+
+# verification pour un dataset
+plot(hsTnI_T2_log~CGR, data=z1)
+wilcox.test(hsTnI_T2_log~CGR, data=z1)
+t.test(hsTnI_T2_log~CGR, data=z1)
+
+
+#verification sur les data bruts
+plot(log(DATA_with_discharge$hsTnI_T2)~DATA_with_discharge$CGR)
+t.test(log(DATA_with_discharge$hsTnI_T2)~DATA_with_discharge$CGR)
+ggplot(DATA_with_discharge, aes(x = log(hsTnI_T2), colour = CGR)) + geom_density()
+
+#faisons une simulation
+a <- data.frame(x = c(rnorm(892, 2.71, 1.93), rnorm(659, 2.85, 1.79)),
+                grp = c(rep("No", 892), rep("Yes", 659)))
+
+boxplot(x ~grp, data = a)
+
+t.test(x ~grp, data = a, var.equal = T)  #=>meme ordre de grandeur 
+
+
+library(ggplot2)
+ggplot(a, aes(x = x, colour = grp)) + geom_density()
+```
+
+## *Additional data requested by authors*
+
+```{r, include=FALSE}
+dim(DATA)
+tot<-dim(DATAtab1)[[1]]
+
+DATAtab2<-DATAtab1[DATAtab1$CGR==1,]
+dim(DATAtab2)
+a<-table(DATAtab1$sid_tn_rbc==1)[2]
+a1<-(prop.table(table(DATAtab1$sid_tn_rbc==1))*100)[2]
+a2<-(prop.table(table(DATAtab2$sid_tn_rbc==1))*100)[2]
+b<-table(DATAtab1$sid_tn_rbc==2)[2]
+b1<-(prop.table(table(DATAtab1$sid_tn_rbc==2))*100)[2]
+b2<-(prop.table(table(DATAtab2$sid_tn_rbc==2))*100)[2]
+x<-table(DATAtab1$CGR==1&
+                       ((!DATAtab1$sid_tn_platelets==0&!is.na(DATAtab1$sid_tn_platelets))|
+                       (!DATAtab1$sid_tn_ffp==0&!is.na(DATAtab1$sid_tn_ffp))))[2]
+         
+prop.table(table(DATAtab2$ffp))
+```
+
+Parmi la population totale de Frog-ICU `r tot`, `r a`patients ont recu une transfusion et `r b` en ont recu 2 représentant respectivement `r a1` et `r b1` % de la population totale et `r a2` et `r b2` de la population transfusée
+
+`r x` patients received at leat one transfusion and platelets and/or ffp
+
+# Session info for this script
+
+```{r, echo = FALSE}
+sessionInfo()
+```

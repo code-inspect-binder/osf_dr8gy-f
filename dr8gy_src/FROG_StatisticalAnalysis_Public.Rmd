@@ -1,0 +1,849 @@
+---
+title: "Analysis notebook for  Association between in-ICU red blood pack transfusion and long-term outcome in the ICU survivors"
+subtitle: "Illustration on a small subsample"
+author: " Imke Mayer, Paul Roussel, Antoine Kimmoun, Thomas Merkling, Kevin Duarte, Julie Josse"
+output:
+  html_document:
+    code_folding: hide
+    theme: journal
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
+  word_document: null
+editor_options:
+  chunk_output_type: inline
+always_allow_html: yes
+---
+
+```{=html}
+<style type="text/css">
+
+h1.title {
+  font-size: 38px;
+  text-align: center;
+}
+
+h4.author { /* Header 4 - and the author and data headers use this too  */
+    font-size: 18px;
+  font-family: "Times New Roman", Times, serif;
+  text-align: center;
+}
+
+h4.date { /* Header 4 - and the author and data headers use this too  */
+  font-size: 18px;
+  font-family: "Times New Roman", Times, serif;
+  text-align: center;
+}
+</style>
+```
+
+# Description
+
+This notebook is provided as a complementary to the article 
+* Association between in-ICU red blood pack transfusion and long-term outcome in the ICU survivors*.
+It contains the R code to run all analyses that are presented in the article.
+Since the FROG dataset is not a publicly available, we provide a random subsample
+of size n=200 and only the relevant variables for the causal analyses to allow the 
+reader to run all lines of code related to the survival analyses and causal inferences
+presented in the article.
+The calculated results from this random subsample of size n=200 do not allow to
+conclude on the medical problem of interest, they are merely used as illustrations
+for the provided code and data structure.
+
+The different methods and models are detailed in the paper and the supplementary material.
+We therefore do not recall them here.
+
+
+```{r, echo=FALSE}
+knitr::opts_chunk$set(error = FALSE, warning=FALSE)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+# markdown options depending on the output (html with R code and Word without)
+output <- knitr::opts_knit$get("rmarkdown.pandoc.to")
+if (output=="html") knitr::opts_chunk$set(message=FALSE, warning=FALSE, echo = TRUE, comment = "", fig.align = "center", fig.width= 9, fig.height=9)
+if (output=="docx") knitr::opts_chunk$set(message=FALSE, warning=FALSE, echo = FALSE, comment = "", fig.align = "center", fig.width= 9, fig.height=9)
+if (output=="pdf") knitr::opts_chunk$set(message=FALSE, warning=FALSE, echo = FALSE, comment = "", fig.align = "center", fig.width= 9, fig.height=9)
+
+options(max.print = .Machine$integer.max)
+```
+
+# Packages
+
+```{r,include=FALSE}
+library(readr)
+library(FactoMineR)
+library(missMDA)
+library(WeightIt)
+library(cowplot)
+library(simsurv)
+library(flexsurv)
+library(MASS)
+library(survMisc)
+library(matrixStats)
+library(RISCA)
+library(readxl)
+library(riskRegression)
+library(reshape2)
+library(rms)
+library(devtools)
+library(boot)
+library(readxl)
+library(Epi)
+library(flextable)
+library(moments)
+library(stringr)
+library(lubridate)
+library(DiagrammeR)
+library(rstatix)
+library(survminer)
+library(tidyr)
+library(missMDA)
+library(mice)
+library(factoextra)
+library(stdReg)
+library(maditr)
+library(outliers)
+library(VIM)
+library(survival)
+library(ggplot2)
+library(dplyr)
+library(survminer)
+library(MatchThem)
+library(pbapply)
+library(ggfortify)
+library(knitr)
+require(miceadds)
+library(forcats)
+library(glmnet)    
+library(grf)       
+library(sandwich)  
+library(tableone)  
+library(cobalt)    
+library(ranger)
+library(Matching)  
+library(survey)  
+library(psych)
+library(patchwork)
+library(gtsummary)
+library(PropCIs)
+library(stringr)
+```
+
+# Load
+
+```{r,include=FALSE,cache=TRUE}
+set.seed(2600)
+load(file="DATA_PUBLIC/clean_data_FROG_TRANSFUSION_subsample200")
+
+
+source("FUNCTIONS_PUBLIC/utils_surv.R")
+source("FUNCTIONS_PUBLIC/function_table1.R")
+source("FUNCTIONS_PUBLIC/function_FROG_TRANSFU.R")
+source("FUNCTIONS_PUBLIC/RCS_plot_LogisticCox.R")
+source("FUNCTIONS_PUBLIC/causal_survival_function.R")
+source("FUNCTIONS_PUBLIC/customize_labels.R")
+```
+
+# Systematic preprocessing
+
+```{r,cache=FALSE,include=T}
+# for table 1
+DATAtab1<-DATA
+
+# Choose baseline confounding from DAG
+numerical_baseline_confounding = c(
+  'age',
+  'ia_igs_2',
+  'csabad_sofa', 
+  'csabad_hb',
+  'csabad_systolic_blood_pressure',
+  'csabad_diastolic_blood_pressure',
+  'csabad_heart_rate',
+  'csabad_eGFR',
+  'csabad_creat_umol_L',
+  'csabad_lactate',
+  'csabad_rate_of_prothrombin'
+)
+
+str(DATA[numerical_baseline_confounding])
+
+
+categorical_baseline_confounding <- c(
+  'initial_admission_unit', 
+  'diagnostic_codeJ',
+  'ia_mac_cab',
+  'gender',
+  "ct_antiplatelets",
+  "ct_none_of_the_above",
+  "cm_chronic_heart_failure",
+  "cm_hypertension",
+  "cm_coronary_artery_disease",
+  "cm_none_of_the_above",
+  "ncm_chronic_renal_disease",
+  "ncm_active_recent_malignant_tumors", 
+  "ncm_anemia",
+  "ncm_none_of_the_above",
+  "mfi_rbc_transfusion" ,
+  "mfi_renal_replacement_therapy", 
+  "mfi_coronary_revascularisation",
+  'seuil_transfu_10',
+  "mfi_heparin",
+  "mfi_antiplatelets"
+)
+
+
+str(DATA[categorical_baseline_confounding])
+
+confounder_names <- c(numerical_baseline_confounding,categorical_baseline_confounding)
+only_outcome_pred_names <- c(
+  'CRP_T1',
+  'GAL_T1',
+  'PCT_T1',
+  'hsTnI_T1',
+  'LFABP_T1',
+  'CYSC_T1',
+  'NGAL_T1',
+  'IL6_T1',
+  'PROBNP_T1'
+)
+
+
+str(DATA[only_outcome_pred_names])
+
+discharge_names<-c("HB_minT",
+                   "hapto_T2",
+                   "GAL_T2",
+                   "PROBNP_T2",
+                   "NGAL_T2",
+                   "NGAL_U_T2",
+                   "CYSC_U_T2",
+                   "LFABP_U_T2",
+                   "PENK_T2",
+                   "IL6_T2",
+                   "hsTnI_T2",
+                   "hapto_IL6_log10",
+                   "sid_eGFR",
+                   "sid_eGFR_cut",
+                   "sid_creat_umol_L",
+                   "dose_rbc")
+
+str(DATA[,discharge_names])
+
+
+
+# Variable names:
+
+X_censoring <-  X_outcome <- c(numerical_baseline_confounding,
+                               categorical_baseline_confounding,only_outcome_pred_names)
+
+X_treatment <- X_confounding <- c(numerical_baseline_confounding,
+                                  categorical_baseline_confounding)
+
+
+
+DATA_without_discharge <- within(DATA,rm("HB_minT",
+                                         "hapto_T2",
+                                         "GAL_T2",
+                                         "PROBNP_T2",
+                                         "NGAL_T2",
+                                         "NGAL_U_T2",
+                                         "CYSC_U_T2",
+                                         "LFABP_U_T2",
+                                         "PENK_T2",
+                                         "IL6_T2",
+                                         "hsTnI_T2",
+                                         "hapto_IL6_log10",
+                                         "sid_eGFR",
+                                         "sid_eGFR_cut",
+                                         "sid_creat_umol_L",
+                                         "dose_rbc"))
+
+DATA_with_discharge <- DATA
+
+tau <- 365
+```
+
+# Preprocessing imputation and boostrap
+
+## Imputation
+
+```{r, eval=FALSE, include=T}
+#without discharge
+imp <- mice(DATA, maxit=0)
+predM = imp$predictorMatrix
+meth = imp$method
+meth["ncm_anemia"] <- "pmm"
+
+imp <- mice(DATA_without_discharge, maxit=0)
+predM = imp$predictorMatrix
+meth = imp$method
+meth["ncm_anemia"] <- "pmm"
+
+imputation_number <- 15 
+mice_without <- mice(DATA_without_discharge,
+                     maxit = 10,
+                     predictorMatrix=predM, 
+                     method = meth,
+                     m = imputation_number,
+                     printFlag = F)
+
+mi.res_without <- mice_without
+save(mice_without, file = "DATA_PUBLIC/mice_without_discharge_impute_15_maxit10_final.Rdata")
+
+#with discharge
+DATAtab1$sid_creat_umol_L
+imp <- mice(DATA_with_discharge, maxit=0)
+predM = imp$predictorMatrix
+meth = imp$method
+meth["ncm_anemia"] <- "pmm"
+
+imputation_number <- 15 
+
+mice_with <- mice(DATA_with_discharge,
+                  maxit = 10,
+                  m = imputation_number,
+                  method = meth,
+                  printFlag = F)
+
+mi.res_with <- mice_with
+save(mice_with, file ="DATA_PUBLIC/mice_with_discharge_impute_15_maxit10_final.Rdata" )
+```
+
+
+```{r, eval=T, include=FALSE}
+imp<-load("DATA_PUBLIC/mice_with_discharge_impute_15_maxit10_final.Rdata")
+mi.res_with<-mice_with
+
+
+# distribution of the imputed values in red as compared to the real values in blue
+stripplot(mi.res_with, GAL_T2 ~ .imp, pch=20, cex=2)
+stripplot(mi.res_with, PENK_T2 ~ .imp, pch=20, cex=2)
+stripplot(mi.res_with, NGAL_T2 ~ .imp, pch=20, cex=2)
+stripplot(mi.res_with, hsTnI_T2 ~ .imp, pch=20, cex=2)
+stripplot(mi.res_with, NGAL_U_T2 ~ .imp, pch=20, cex=2)
+stripplot(mi.res_with, PROBNP_T2 ~ .imp, pch=20, cex=2)
+stripplot(mi.res_with, sid_eGFR ~ .imp, pch=20, cex=2)
+stripplot(mi.res_with, sid_creat_umol_L ~ .imp, pch=20, cex=2)
+```
+
+
+### Bootstrap without imputation
+
+```{r}
+bootstrap_number <- 100
+```
+
+```{r, include=FALSE,eval=FALSE}
+l_bootstrap_100 <- list()
+for (i in c(1:bootstrap_number)){
+    DATA_boot <- sample_n(DATA_without_discharge, nrow(DATA_without_discharge), replace = TRUE)
+    l_bootstrap_100[[i]] <- DATA_boot
+}
+```
+
+### Imputation after bootstrap:
+
+```{r, include=T,eval=FALSE}
+imp <- mice(DATA_without_discharge, maxit=0)
+predM = imp$predictorMatrix
+meth = imp$method
+meth["ncm_anemia"] <- "pmm"
+meth["mfi_antiplatelets"] <- "pmm"
+meth["cm_none_of_the_above"] <- "pmm"
+
+imputation_number <- 10
+
+list_no_error = c()
+list_mice_100bootmi <- list()
+for (i in 1:bootstrap_number){
+  tryCatch({
+  DATA_boot <- l_bootstrap_100[[i]]
+  mice_without <- mice(DATA_boot,
+                     maxit = 10,
+                     m = imputation_number,
+                     method = meth,
+                     printFlag = F)
+  list_mice_100bootmi[[i]] <- mice_without
+  list_no_error <- c(list_no_error,i)
+  }, error = function(msg){list_no_error <- c(list_no_error,FALSE)})
+    print(i)
+}
+
+
+
+list_mice_100bootmi <- list_mice_100bootmi[list_no_error][1:100]
+save(list_mice_100bootmi, file="DATA_PUBLIC/list_mice_100bootmi_final")
+
+l_bootstrap_100 <- l_bootstrap_100[list_no_error][1:100]
+save(l_bootstrap_100, file="DATA_PUBLIC/DATA_bootstrap_100_final")
+```
+
+
+
+### Load lists of bootstrap samples and imputations
+
+```{r, include=FALSE,eval=T}
+load("DATA_PUBLIC/DATA_bootstrap_100_final")
+load("DATA_PUBLIC/list_mice_100bootmi_final")
+load("DATA_PUBLIC/mice_with_discharge_impute_15_maxit10_final.Rdata")
+load("DATA_PUBLIC/mice_without_discharge_impute_15_maxit10_final.Rdata")
+
+mi.res_without <- mice_without
+mi.res_with <- mice_with
+```
+
+
+
+# Estimation
+
+## Average treatment effect
+
+### MICE with logistic + Cox regression
+
+
+```{r, include=T, eval=FALSE}
+all_survival_estimator_cox <- pbsapply(list_mice_100bootmi,
+                                       function(mice_without) {
+    try(list_DATA_input <- complete(mice_without,"all"))
+    resapply <- sapply(list_DATA_input,
+                       function(DATA) try(unlist(estimate_ATE_all(DATA, tau, outcome_type="RMST", 
+                                                            methods=c("Kaplan_meier","IPTW Kaplan_meier","AIPTW-AIPCW"),
+                                                            outcome_name=X_outcome, censoring_name=X_censoring, treatment_name=X_confounding, 
+                                                            outcome_learner="Slearner", censoring_learner="Slearner",
+                                                            type_of_censoring_model ="cox", type_of_outcome_model="cox",
+                                                            type_of_treatment_model="reglog", 
+                                                            trimming_value_lower=0, trimming_value_upper=0, stabilized_IPTW=FALSE))))
+    if (is.null(dim(resapply))){
+      return(rep(NA,3))
+    }
+    return(rowMeans(resapply,na.rm = T))
+  })
+
+all_survival_estimator_cox <-as.data.frame(t(all_survival_estimator_cox))
+all_survival_estimator_cox
+summary(all_survival_estimator_cox)
+
+write.csv(all_survival_estimator_cox,"DATA_PUBLIC/all_survival_estimators_cox_bootmi_365_final.csv", row.names = FALSE)
+```
+
+```{r, include=FALSE, eval=T}
+all_survival_estimator_cox <- read.csv("DATA_PUBLIC/all_survival_estimators_cox_bootmi_365_final.csv")
+
+label <- colnames(all_survival_estimator_cox)
+mean  <- unlist(lapply(all_survival_estimator_cox, mean, na.rm = TRUE))
+median  <- unlist(lapply(all_survival_estimator_cox, median, na.rm = TRUE))
+lower <- unlist(lapply(all_survival_estimator_cox, quantile, probs=c(0.025), na.rm=TRUE))
+upper <- unlist(lapply(all_survival_estimator_cox, quantile, probs=c(0.975), na.rm=TRUE))
+
+df_cox <- data.frame(label, mean, lower, upper)
+df_cox
+```
+
+
+### Forest + MIA
+
+
+```{r, include=FALSE,eval=FALSE}
+all_survival_estimator_forest <- pbsapply(l_bootstrap_100,function(DATA) { return(unlist(estimate_ATE_all(DATA,365,outcome_type="RMST",methods=c("Kaplan_meier","IPTW Kaplan_meier"),outcome_name=X_outcome,censoring_name=X_censoring,treatment_name=X_confounding,outcome_learner="Tlearner",type_of_censoring_model ="forest",type_of_outcome_model="forest",censoring_learner="Tlearner",type_of_treatment_model="forest",trimming_value_lower=0,trimming_value_upper=0,stabilized_IPTW = FALSE)))
+
+  })
+
+
+all_survival_estimator_forest <-as.data.frame(t(all_survival_estimator_forest))
+all_survival_estimator_forest
+summary(all_survival_estimator_forest)
+
+
+
+csf_wrapper <- function(DATA, tau, X_outcome_name, X_treatment_name){
+DATA_grf <- DATA
+DATA_grf$A <- as.numeric(DATA$A)-1
+DATA_grf$status[DATA_grf$T_obs>=tau] <- 1
+DATA_grf$T_obs[DATA_grf$T_obs>=tau] <- tau  
+
+DATA_grf_treatment <- DATA_grf
+categorical_name <- names(which(sapply(subset(DATA_grf, select = c(X_treatment_name)), class) == "factor"))
+if (length(categorical_name) >0){
+      numerical_name <- setdiff(X_treatment_name,categorical_name)
+      na.action <- options()$na.action
+      options(na.action='na.pass')
+      X_one_hot <- model.matrix(~ 0 + ., DATA_grf[categorical_name], na.action = "na.pass")
+      categorical_name_one_hot <- names(as.data.frame(X_one_hot))
+      replace_string <- function(string) {return(stringr::str_replace_all(string, ' ', '_'))}
+      categorical_name_one_hot <- sapply(categorical_name_one_hot,replace_string)
+      DATA_grf_treatment[categorical_name_one_hot] <- X_one_hot
+      X_treatment_name <- union(categorical_name_one_hot,numerical_name)
+      options(na.action = na.action)
+}
+forest.W <- regression_forest(as.matrix(DATA_grf_treatment[, X_treatment_name]), DATA_grf_treatment$A, tune.parameters = "all")
+W.hat <- predict(forest.W)$predictions
+  
+categorical_name <- names(which(sapply(subset(DATA_grf, select = c(X_outcome_name)), class) == "factor"))
+if (length(categorical_name) >0){
+      numerical_name <- setdiff(X_outcome_name,categorical_name)
+      na.action <- options()$na.action
+      options(na.action='na.pass')
+      X_one_hot <- model.matrix(~ 0 + ., DATA_grf[categorical_name], na.action = "na.pass")
+      categorical_name_one_hot <- names(as.data.frame(X_one_hot))
+      replace_string <- function(string) {return(stringr::str_replace_all(string, ' ', '_'))}
+      categorical_name_one_hot <- sapply(categorical_name_one_hot,replace_string)
+      DATA_grf[categorical_name_one_hot] <- X_one_hot
+      X_outcome_name_grf <- union(categorical_name_one_hot,numerical_name)
+      options(na.action = na.action)
+}
+cs.forest <- causal_survival_forest(X=as.matrix(DATA_grf[,X_outcome_name_grf]),
+                                    Y=DATA_grf$T_obs, W=DATA_grf$A,
+                                    
+                                    D=DATA_grf$status,
+                                    W.hat=W.hat)
+
+
+# Compute a doubly robust estimate of the average treatment effect.
+return(average_treatment_effect(cs.forest))
+}
+
+
+all_survival_estimator_csf <- pbsapply(l_bootstrap_100, function(DATA) { return(unlist(csf_wrapper(DATA,365,X_outcome,X_treatment)))
+  })
+
+all_survival_estimator_csf <- as.data.frame(t(all_survival_estimator_csf))
+colnames(all_survival_estimator_csf) <- "AIPTW-AIPCW"
+all_survival_estimator_csf[,1]
+
+all_survival_estimator_forest <- cbind(all_survival_estimator_forest, "AIPTW-AIPCW"=all_survival_estimator_csf[,1])
+
+write.csv(all_survival_estimator_forest,"DATA_PUBLIC/all_survival_estimators_forest_100boot_365_final.csv", row.names = FALSE)
+```
+
+```{r, include=FALSE, eval=T}
+all_survival_estimator_forest <- read.csv("DATA_PUBLIC/all_survival_estimators_forest_100boot_365_final.csv")
+
+label <- colnames(all_survival_estimator_forest)
+mean  <- unlist(lapply(all_survival_estimator_forest, mean, na.rm = TRUE))
+median  <- unlist(lapply(all_survival_estimator_forest, median, na.rm = TRUE))
+lower <- unlist(lapply(all_survival_estimator_forest, quantile, probs=c(0.025), na.rm=TRUE))
+upper <- unlist(lapply(all_survival_estimator_forest, quantile, probs=c(0.975), na.rm=TRUE))
+
+df_forest <- data.frame(label, mean, lower, upper)
+df_forest
+```
+
+
+## Propensity scores
+
+### Parametric propensity score
+
+```{r,include=T,eval=FALSE}
+# We compute the mean of the propensity score on each imputed data set of the multiple imputation
+
+results_e_hat <- matrix(NA, nrow = nrow(DATA), ncol = imputation_number)
+for (j in c(1:imputation_number)){
+  DATA_imp <- complete(mi.res_without, j)
+  outcome <- 'A'
+  f <- as.formula(paste(outcome, paste(c(X_confounding), collapse = " + "), sep = " ~ "))
+  fitA <- glm(f,data = DATA_imp,family = binomial(link="logit"))
+  e_hat <- predict(fitA,newdata=DATA_imp,type="response")
+  results_e_hat[,j] <- e_hat
+  print(j)
+}
+e_hat_mean <- rowMeans(results_e_hat)
+
+# We save the mean of the propensity scores
+save(e_hat_mean, file="DATA_PUBLIC/e_hat_mean_final")
+```
+
+### Non-parametric propensity score
+
+```{r,include=T,eval=FALSE}
+# We compute the mean of the propensity score on each imputed data set of the multiple imputation
+results_e_hat_forest <- matrix(NA, nrow = nrow(mi.res_without$data), ncol = imputation_number)
+for (j in c(1:imputation_number)){
+  DATA_imp <- complete(mi.res_without, j)
+  DATA_imp$A <- as.numeric(DATA_imp$A) - 1
+  DATA_imp <- as.data.frame(DATA_imp)
+  categorical_name <- names(which(sapply(subset(DATA_imp, select = c(X_confounding)), class) == "factor"))
+  numerical_name <- setdiff(X_confounding,categorical_name)
+  options(na.action='na.pass')
+  X_one_hot <- model.matrix(~ 0 + ., subset(DATA_imp, select = c(categorical_name)), na.action = "na.pass")
+  categorical_name_one_hot <- names(as.data.frame(X_one_hot))
+  replace_string <- function(string) {return(str_replace_all(string, ' ', '_'))}
+  categorical_name_one_hot <- sapply(categorical_name_one_hot,replace_string)
+  DATA_imp[categorical_name_one_hot] <- X_one_hot
+
+  X_confounding_one_hot <- union(categorical_name_one_hot,numerical_name)
+
+  Xipw <- as.matrix(DATA_imp[X_confounding_one_hot])
+  Wipw <- as.matrix(DATA_imp$A)
+  forest.W <- regression_forest(Xipw, Wipw, tune.parameters = "all")
+  e_hat <- predict(forest.W)$predictions
+  
+  results_e_hat_forest[,j] <- e_hat
+  print(j)
+}
+
+e_hat_mean_forest <- rowMeans(results_e_hat_forest)
+
+# We save the mean of the propensity scores
+save(e_hat_mean_forest, file="DATA_PUBLIC/e_hat_mean_forest_final")
+```
+
+
+
+### Love plot
+
+```{r,include=FALSE,eval=T}
+outcome <- 'A'
+f <- as.formula(paste(outcome, paste(c(X_confounding), collapse = " + "), sep = " ~ "))
+
+
+loveplot.out <- weightthem(f, datasets = mi.res_without, approach = "within", method = "ps")
+
+summary(loveplot.out)
+#dans weightthem => correspond bien à IPTW car pas de nearest, tous les patients sont dedans
+
+
+
+bal.tab(loveplot.out,
+        abs = TRUE,
+        #weights = "weights",
+        thresholds = c(m = .1, v = 2))
+
+
+var.names<-c(age="age",
+             csabad_sofa="SOFA at I",
+             csabad_systolic_blood_pressure="systolic blood pressure at I",
+             csabad_heart_rate="heart rate at I ",
+             csabad_creat_umol_L="creatinin at I",
+             csabad_rate_of_prothrombin="PT rate at I",
+             diagnostic_code="diagnostic",
+             gender="gender",
+             cm_hypertension="hypertension",
+             csabad_diastolic_blood_pressure="diastolic blood pressure at I",
+             mfi_renal_replacement_therapy="renal replacement",
+             seuil_transfu_10="high transfusion threshold",
+             mfi_antiplatelets="platelet transfusion before I",
+             ia_igs_2="SAPS2",
+             csabad_hb="hemoglobin rate at I",
+             csabad_eGFR="eGFR at I",
+             csabad_lactate="lactate at I",
+             gender="gender",
+             ia_mac_cab="Mac cab score",
+             initial_admission_unit="initial admission unit",
+             ct_antiplatelets="chronic antiplatelets therapy",
+             cm_coronary_artery_disease="chronic coronary disease",
+             ncm_chronic_renal_disease="chronic renal disease",
+             ncm_anemia="chronic anemia",
+             mfi_rbc_transfusion="RBP transfusion before I ",
+             mfi_coronary_revascularisation="PCI before I ",
+             mfi_heparin="heparin treatment before I",
+             ncm_chronic_disease="any chronic disease",
+             ncm_active_recent_malignant_tumors="recent malignant tumor",
+             ct_none_of_the_above="no medical treatment",
+             ncm_none_of_the_above="no medical history",
+             cm_chronic_heart_failure="chronic heart failure")
+
+save(loveplot.out, file="DATA_PUBLIC/loveplot.out")
+```
+
+## Survival curves
+
+Unadjusted HR
+
+```{r,include=T,eval=FALSE}
+bootstrap_number <- 100
+#Estimate the unadjusted hazard ratio from a cox model
+results_HR_unadjusted_cox <- c()
+for (i in c(1:bootstrap_number)){
+  DATA_input_KM <-   l_bootstrap_100[[i]]
+  
+  DATA_input_KM$T_obs_cox <- pmin(DATA_input_KM$T_obs,tau)
+  DATA_input_KM$status_cox <- as.numeric( (DATA_input_KM$T_obs<tau &  DATA_input_KM$status == 1 ))
+  fitS_outcome <- cph(Surv(T_obs_cox,status_cox)~ A,data=DATA_input_KM)
+  coefHR <- fitS_outcome$coefficients["A=1"]
+  unadjustedHR <- exp(coefHR)
+  results_HR_unadjusted_cox <- c(results_HR_unadjusted_cox,unadjustedHR)
+}
+
+
+unadjusted_HR_mean <- mean(results_HR_unadjusted_cox)
+unadjusted_HR_lower <- quantile(results_HR_unadjusted_cox,0.025)
+unadjusted_HR_upper <- quantile(results_HR_unadjusted_cox,0.975)
+
+result_HR <- list("unadjusted_HR_mean"=unadjusted_HR_mean,"unadjusted_HR_lower"=unadjusted_HR_lower,"unadjusted_HR_upper"=unadjusted_HR_upper)
+
+save(result_HR, file="DATA_PUBLIC/result_HR_final")
+```
+
+
+Survival forest
+
+```{r, include=T,eval=FALSE}
+Y <- pmin(DATA$T_obs,tau)
+Y.grid <- sort(unique(Y))
+
+pool_survival_curves <- function(df){
+  
+
+  result_ATE <- estimate_ATE(df, tau, outcome_type="survival", Y.grid=Y.grid,
+                             type_of_treatment_model="forest", type_of_outcome_model="forest", type_of_censoring_model="forest", 
+                             method="AIPTW-AIPCW", 
+                             outcome_name=X_outcome, censoring_name=X_censoring, treatment_name=X_confounding, 
+                             estimate_individual=FALSE, outcome_learner="Slearner", censoring_learner="Slearner")
+
+  resapply <- matrix(unlist(result_ATE[1:2]), ncol = 1)
+
+  hazards <-apply(resapply, 2,function(listS1S0) {
+      S1 <- listS1S0[1:length(Y.grid)]
+      S0 <- listS1S0[(length(Y.grid)+1):(2*length(Y.grid))]
+      return(estimate_average_hazard_ratio(S1,S0))
+      })
+
+  hazard <- mean(hazards)
+  
+  S1S0 <- rowMeans(resapply)
+  
+  S1 <- S1S0[1:length(Y.grid)]
+  S0 <- S1S0[(length(Y.grid)+1):(2*length(Y.grid))]
+  
+  
+  return(c("S1"=S1,"S0"=S0,"hazard"=hazard))
+}
+
+pooled_survival_curves <- pbsapply(l_bootstrap_100, pool_survival_curves)
+
+write.csv(pooled_survival_curves,"DATA_PUBLIC/pooled_survival_curves_forest.csv", row.names = FALSE)
+
+pooled_survival_curves_0.975 <- rowQuantiles(pooled_survival_curves,probs=0.975, na.rm=T)
+pooled_survival_curves_0.025 <- rowQuantiles(pooled_survival_curves,probs=0.025, na.rm=T)
+
+
+pooled_survival_curves_mean <- rowMeans(pooled_survival_curves, na.rm=T)
+S_1 <-pooled_survival_curves_mean[1:length(Y.grid)]
+S_0 <- pooled_survival_curves_mean[(length(Y.grid)+1):(2*length(Y.grid))]
+
+S1_lower <-pooled_survival_curves_0.025[1:length(Y.grid)]
+S0_lower <- pooled_survival_curves_0.025[(length(Y.grid)+1):(2*length(Y.grid))]
+
+S1_upper <-pooled_survival_curves_0.975[1:length(Y.grid)]
+S0_upper <- pooled_survival_curves_0.975[(length(Y.grid)+1):(2*length(Y.grid))]
+
+
+AHR_mean <-pooled_survival_curves_mean[(2*length(Y.grid))+1]
+AHR_lower <- pooled_survival_curves_0.025[(2*length(Y.grid))+1]
+AHR_upper <- pooled_survival_curves_0.975[(2*length(Y.grid))+1]
+```
+
+
+
+```{r,include=T,eval=FALSE}
+A_curve <- c(rep('1',length(Y.grid)),rep('0',length(Y.grid)))
+strata_curve <- c(rep('A=1',length(Y.grid)),rep('A=0',length(Y.grid)))
+S_curve <- c(S_1,S_0) 
+Y_curve <- c(Y.grid,Y.grid)
+out_wb1 <- data.frame(time = Y_curve, surv = S_curve, upper = NA, lower = NA, std.err = NA,strata= strata_curve,A= A_curve)
+out_wb1$strata <- as.factor(out_wb1$strata)
+out_wb1$A <- as.factor(out_wb1$A)
+out_wb1$AHR_mean <- AHR_mean
+out_wb1$AHR_lower <- AHR_lower
+out_wb1$AHR_upper <- AHR_upper
+
+write.csv(out_wb1,"DATA_PUBLIC/dataset_to_plot_adjusted_survival_curve_forest.csv", row.names = FALSE)
+```
+
+
+
+### Survival curve (figure)
+
+
+```{r,include=FALSE,eval=T}
+out_wb1 <- read.csv("DATA_PUBLIC/dataset_to_plot_adjusted_survival_curve_forest.csv")
+load(file="DATA_PUBLIC/result_HR_final")
+
+AHR_mean <- out_wb1$AHR_mean[1]
+AHR_lower <- out_wb1$AHR_lower[1]
+AHR_upper <- out_wb1$AHR_upper[1]
+
+UHR_mean<-result_HR$unadjusted_HR_mean
+UHR_lower<-result_HR$unadjusted_HR_lower
+UHR_upper<-result_HR$unadjusted_HR_upper
+
+
+
+## We build the curve here
+adjusted_survival_curve <- ggsurvplot(out_wb1,
+                    risk.table = F,
+                    fun = function(y) y*100,
+                     legend="bottom",
+                     legend.title="",
+                     legend.labs=c("No transfusion","Transfusion"),
+                     ggtheme = theme_bw(),
+                    palette = c("blue", "red"),
+                    font.x=c(20,"bold", "black"),
+                    xlab="Time (days)",
+                    ylab="",
+                    font.y=c(20,"bold", "black"),
+                    font.tickslab = c(20,"bold", "black"),
+                    font.legend = c(20,"bold", "black"),
+                    font.legend.title = c(20,"bold", "black"))
+
+adjusted_survival_curve <- adjusted_survival_curve + ggplot2::annotate("text",x = 200, y = 10,label = sprintf("Adjusted AHR: %s [%s,%s]", round(AHR_mean,2),round(AHR_lower,2),round(AHR_upper,2)),size=5)
+
+
+
+DATA_input_KM <- DATA
+DATA_input_KM$T_obs_cox <- pmin(DATA_input_KM$T_obs,tau)
+DATA_input_KM$status_cox <- as.numeric( (DATA_input_KM$T_obs<tau &  DATA_input_KM$status == 1 ))
+DATA_input_KM <- DATA_input_KM[,c("T_obs_cox", "status_cox", "A")]
+KM_graphNM<-survfit( Surv(T_obs_cox,  status_cox) ~ A, data = DATA_input_KM)
+
+save(KM_graphNM, DATA_input_KM, file="DATA_PUBLIC/unadjusted_KM_full")
+
+Table<-ggsurvtable(KM_graphNM,data = DATA_input_KM,
+                   color = "strata",
+                   palette = c("blue", "red"),
+                   y.text = FALSE,
+                   xlim=c(0,365),
+                   legend="none",
+                   break.time.by = 91.25,ylab="") 
+
+
+unadjusted_survival_curve <- ggsurvplot(KM_graphNM,
+                    risk.table = F,
+                    fun = function(y) y*100,
+                    legend="bottom",
+                    legend.title="",
+                    legend.labs=c("No transfusion","Transfusion"),
+                    ggtheme = theme_bw(),
+                    palette = c("blue", "red"),
+                    font.x=c(20,"bold", "black"),
+                    xlab="Time (days)",
+                    ylab="Survival probability (%)",
+                    font.y=c(20,"bold", "black"),
+                    font.tickslab = c(20,"bold", "black"),
+                    font.legend = c(20,"bold", "black"),
+                    font.legend.title = c(20,"bold", "black")
+                    )
+
+unadjusted_survival_curve[[1]]<- unadjusted_survival_curve[[1]] + ggplot2::annotate("text", x=200, y=10,label = sprintf("Unadjusted HR: %s [%s,%s]", round(UHR_mean,2),round(UHR_lower,2),round(UHR_upper,2)), size = 5)+ theme(legend.position = "none")
+
+
+(unadjusted_survival_curve[[1]] + adjusted_survival_curve)  / guide_area()+plot_layout( guides = 'collect')
+```
+
+```{r,echo=FALSE, eval=T}
+adjusted_survival_curve
+unadjusted_survival_curve
+```
+
+
+
+
+# Session info for this script
+
+```{r, echo = FALSE}
+sessionInfo()
+```
+
